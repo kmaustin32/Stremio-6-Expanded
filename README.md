@@ -1,22 +1,44 @@
-## Stremio shell: new gen
+# Stremio6-Custom
 
-A Windows-only shell using WebView2 and MPV
+A Windows fork of [Stremio's official Rust shell](https://github.com/Stremio/stremio-shell-ng), using WebView2 and mpv. It brings Ezra's Library lists and playback shortcuts to the official Stremio interface.
+
+## Download
+
+Get the Windows x64 installer or portable ZIP from the [latest stable release](https://github.com/kmaustin32/Stremio6-Custom/releases/latest). To use the portable build, extract the ZIP and run `Stremio6-Custom.exe`. The installer uses a separate app profile and Start menu entry and installs WebView2 if needed.
+
+## Library lists and sorting
+
+- Create and manage lists directly from the Library toolbar. Use the **All**, **Anime**, **Live Action**, and **Most Watched** chips or select a custom list from the dropdown.
+- Sort or filter within the selected list. The toolbar supports **A–Z**, **Z–A**, **Last Watched**, **Watched**, and **Not Watched**, alongside the movie and series filter.
+- Use **Add to list** in a title's three-dot menu. **Ctrl+click** selects titles for a bulk edit, and a title can belong to multiple custom lists.
+- Anime and Live Action are filled automatically. Manual moves are saved, and custom lists can be shown on Home. Lists are saved on this computer for each Stremio account.
+
+## Playback shortcuts
+
+| Shortcut | Action |
+| --- | --- |
+| **Ctrl+Shift+C** | Detect baked-in black bars during playback and keep the confirmed crop for the current video. Press again to restore the full frame. A video without confirmed bars keeps its original framing. |
+| **Ctrl+B** | Toggle ambient blur in the space around the video. You can use it after detecting baked-in bars. |
+| **Ctrl+1–6** | Select an Anime4K HQ shader preset. |
+| **Ctrl+7** | Select FSR upscaling. |
+| **Ctrl+8** | Clear the active shaders. |
 
 ## Stremio6-Custom releases and upstream updates
 
-Download the Windows installer or portable ZIP from [GitHub Releases](https://github.com/kmaustin32/Stremio6-Custom/releases). Stable fork tags use `custom-v<version>` so official Stremio tags can coexist with them.
-
-Use `codex/ezra-core-stable` as the base for a new integration branch when updating the official Windows shell. Add the upstream remote once per clone, then merge its latest `main` into the integration branch:
+Stable fork tags use `custom-v<version>` so official Stremio tags can coexist with them. Start from this fork's `main` when creating an integration branch to bring in an official shell update. Add the upstream remote once per clone.
 
 ```sh
 git remote add upstream https://github.com/Stremio/stremio-shell-ng.git
 git fetch upstream --no-tags main
-git switch codex/ezra-core-stable
+git switch main
+git pull --ff-only origin main
 git switch -c codex/update-stremio-shell
 git merge upstream/main
 ```
 
-Run Windows CI and check the Library toolbar, watched filters, poster menu and bulk selection with a signed-in library before merging the integration branch back. Check the blur, crop and shader shortcuts on actual playback as well. The hosted Stremio Web interface updates separately from the shell. If its Library structure changes, check that the custom controls appear and that saved lists still load before publishing another release.
+Run Windows CI and check the Library toolbar, watched filters, poster menu, and bulk selection with a signed-in library before merging the integration branch into `main`. Check blur, crop, and shader shortcuts during playback. The hosted Stremio Web interface updates separately from the shell. If its Library structure changes, check that the custom controls appear and saved lists still load.
+
+## Shell architecture
 
 Goals:
 * Performance

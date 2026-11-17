@@ -1,4 +1,4 @@
-use crate::stremio_app::constants::{safe_url, SERVER_IPC_KEY};
+use crate::stremio_app::constants::{safe_url, SERVER_IPC_KEY, WEB_ENDPOINT};
 use crate::stremio_app::ipc;
 use native_windows_gui::{self as nwg, PartialUi};
 use once_cell::unsync::OnceCell;
@@ -220,6 +220,14 @@ impl PartialUi for WebView {
                                 return Ok(());
                             }
                             let msg = msg.try_get_web_message_as_string()?;
+                            if !same_origin(&url::Url::parse(WEB_ENDPOINT).ok().map(|url| url.origin()), &source)
+                                && serde_json::from_str::<ipc::RPCRequest>(&msg).ok().as_ref()
+                                    .and_then(ipc::RPCRequest::get_method)
+                                    .is_some_and(|method| matches!(method,
+                                        crate::stremio_app::ezra_library::COMMAND | crate::stremio_app::ezra_playback::COMMAND))
+                            {
+                                return Ok(());
+                            }
                             tx_web.send(msg).ok();
                             Ok(())
                         }).expect("Cannot add web message received");
@@ -313,16 +321,20 @@ impl PartialUi for WebView {
                         })
                         .unwrap();
 
-                        let navigation = endpoint.borrow().clone();
-                        controller_clone
-                            .set(controller)
-                            .expect("Cannot update the controller");
-                        if let Some(endpoint) = navigation {
-                            if WebView::navigate_webview(&webview, &endpoint).is_err() {
-                                navigation_tx.send(ipc::RPCResponse::response_message(Some(json!(["app-error", format!("Cannot load WEB UI at '{}'", &endpoint)])))).ok();
+                        webview.add_script_to_execute_on_document_created(concat!(
+                            include_str!("../ezra_assets/fork-lists.js"), "\n",
+                            include_str!("../ezra_assets/library_adapter.js"), "\n",
+                            include_str!("../ezra_assets/playback_shortcuts.js"),
+                        ), move |_| {
+                            let webview = controller.get_webview()?;
+                            controller_clone.set(controller).expect("Cannot update the controller");
+                            if let Some(endpoint) = endpoint.borrow().as_deref() {
+                                if WebView::navigate_webview(&webview, endpoint).is_err() {
+                                    navigation_tx.send(ipc::RPCResponse::response_message(Some(json!(["app-error", format!("Cannot load WEB UI at '{}'", endpoint)])))).ok();
+                                }
                             }
-                        }
-                        Ok(())
+                            Ok(())
+                        })
                     })
             });
         if let Err(e) = result {

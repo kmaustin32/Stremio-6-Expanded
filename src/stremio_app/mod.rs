@@ -2,6 +2,8 @@ pub mod app;
 pub use app::MainWindow;
 pub mod discord;
 pub mod external_player;
+mod ezra_library;
+mod ezra_playback;
 pub mod gpu_video_processing;
 pub mod ipc;
 pub mod mpv_config;

@@ -607,7 +607,21 @@ impl MainWindow {
                             eprintln!("Discord clear activity error: {}", e);
                         }
                     }
-                    Some(player_command) if player_command.starts_with("mpv-") => {
+                    Some(super::ezra_library::COMMAND) => {
+                        if let Some(params) = msg.get_params() {
+                            let result = super::ezra_library::handle(params);
+                            web_tx_web
+                                .send(RPCResponse::response_message(Some(serde_json::json!([
+                                    "fork-library-store-result",
+                                    result
+                                ]))))
+                                .ok();
+                        }
+                    }
+                    Some(player_command)
+                        if player_command.starts_with("mpv-")
+                            || player_command == super::ezra_playback::COMMAND =>
+                    {
                         let resp_json = serde_json::to_string(
                             &msg.args.expect("Cannot have method without args"),
                         )

@@ -459,6 +459,9 @@ fn create_mpv(window_handle: HWND) -> Mpv {
                 eprintln!("mpv: cannot set {name}={value}: {error:?}");
             }
         }
+        if let Err(error) = initializer.set_property("background-blur-radius", 25.0_f64) {
+            eprintln!("mpv: cannot set background-blur-radius: {error:?}");
+        }
         if let Some(path) = mpv_config::path() {
             if let Err(error) = initializer.load_config(&path) {
                 eprintln!("mpv: cannot load {path}: {error:?}");
@@ -863,7 +866,28 @@ fn create_message_thread(
 
         // -- InMsg handler loop --
 
+        let ezra_playback = crate::stremio_app::ezra_playback::Playback::new(&mpv);
+        if let Err(error) = &ezra_playback {
+            eprintln!("Could not set up Ezra playback controls: {error:#}");
+        }
         for msg in in_msg_receiver.iter() {
+            if let Ok((crate::stremio_app::ezra_playback::COMMAND, action)) =
+                serde_json::from_str::<(&str, &str)>(&msg)
+            {
+                if let Err(error) = ezra_playback
+                    .as_ref()
+                    .map_err(|error| error.to_string())
+                    .and_then(|playback| {
+                        playback
+                            .handle(&mpv, action)
+                            .map_err(|error| error.to_string())
+                    })
+                {
+                    eprintln!("Ezra playback: {error}");
+                    let _ = mpv.command("show-text", &["Ezra playback option unavailable"]);
+                }
+                continue;
+            }
             let in_msg: InMsg = match serde_json::from_str(&msg) {
                 Ok(in_msg) => in_msg,
                 Err(error) => {

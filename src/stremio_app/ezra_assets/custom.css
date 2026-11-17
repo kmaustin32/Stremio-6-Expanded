@@ -1,0 +1,77 @@
+html[data-ezra-theme] {
+    --accent-color: #7272c2 !important;
+    --accent-background-color: #7272c2 !important;
+    --player-foreground-color: #858b99 !important;
+}
+
+html[data-ezra-theme]:not([data-ezra-playing]) {
+    --background-color-primary: #0b0f18 !important;
+    --background-color-secondary: #161a26 !important;
+    --modal-background-color: #161a26 !important;
+}
+
+html[data-ezra-theme]:not([data-ezra-playing]) body {
+    background: linear-gradient(to bottom right, #0b0f18, #161a26);
+}
+
+html[data-ezra-theme] :is([class*="watched-icon-"], [class*="watched-badge-"]) {
+    color: #dea066;
+    fill: currentColor;
+}
+
+.ezra-dialog,
+.ezra-dialog input,
+.ezra-dialog button,
+.ezra-dialog select,
+#ezra-library-lists,
+#ezra-theme-button {
+    font: inherit;
+    color: var(--foreground-color-primary, #eee);
+}
+
+.ezra-dialog {
+    background: var(--modal-background-color, #161a26);
+    border: 1px solid var(--accent-color, #7272c2);
+    border-radius: 0.75rem;
+    padding: clamp(1rem, 3vw, 2rem);
+    width: min(28rem, 90vw);
+    max-height: min(84vh, 56rem);
+    overflow: auto;
+}
+
+.ezra-dialog::backdrop { background: #0b0f18b8; }
+.ezra-dialog h2 { margin: 0 0 0.75rem; font-size: 1.4rem; }
+.ezra-dialog label { display: flex; align-items: center; gap: 0.5rem; }
+.ezra-dialog form, .ezra-assignment { display: grid; gap: 0.65rem; }
+.ezra-dialog p[role="alert"]:empty { display: none; }
+.ezra-dialog p[role="alert"] { color: #ffb2ac; }
+
+.ezra-dialog :is(button, select, input:not([type="checkbox"], [type="radio"])),
+#ezra-library-lists,
+#ezra-theme-button {
+    background: var(--modal-background-color, #161a26);
+    border: 1px solid color-mix(in srgb, var(--accent-color, #7272c2) 62%, transparent);
+    border-radius: 0.45rem;
+    padding: 0.55rem 0.75rem;
+    min-width: 0;
+}
+
+.ezra-dialog button:not(:disabled), #ezra-library-lists, #ezra-theme-button { cursor: pointer; }
+.ezra-dialog button:disabled { opacity: 0.45; }
+.ezra-dialog :focus-visible,
+#ezra-library-lists:focus-visible,
+#ezra-theme-button:focus-visible { outline: 2px solid var(--accent-color, #7272c2); outline-offset: 2px; }
+
+.ezra-library { width: min(66rem, 94vw); }
+.ezra-library header { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
+.ezra-list-controls { display: flex; flex-wrap: wrap; gap: 0.55rem; }
+.ezra-list-grid { display: grid; gap: 0.45rem; margin-top: 0.7rem; }
+.ezra-list-card {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.45rem;
+    background: var(--surface-background-color, #ffffff0d);
+    border-radius: 0.45rem;
+}
+.ezra-list-card a { flex: 1; line-height: 1.4; overflow-wrap: anywhere; color: inherit; }

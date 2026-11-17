@@ -17,4 +17,5 @@ pub mod window_helper;
 pub mod window_settings;
 pub use named_pipe::{acquire_single_instance, PipeServer, SingleInstance};
 pub mod constants;
+mod ezra_playback;
 pub mod updater;

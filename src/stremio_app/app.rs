@@ -607,7 +607,10 @@ impl MainWindow {
                             eprintln!("Discord clear activity error: {}", e);
                         }
                     }
-                    Some(player_command) if player_command.starts_with("mpv-") => {
+                    Some(player_command)
+                        if player_command.starts_with("mpv-")
+                            || player_command == super::ezra_playback::COMMAND =>
+                    {
                         let resp_json = serde_json::to_string(
                             &msg.args.expect("Cannot have method without args"),
                         )

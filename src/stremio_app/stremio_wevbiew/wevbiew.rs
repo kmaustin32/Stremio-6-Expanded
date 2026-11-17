@@ -1,4 +1,4 @@
-use crate::stremio_app::constants::{safe_url, SERVER_IPC_KEY};
+use crate::stremio_app::constants::{safe_url, SERVER_IPC_KEY, WEB_ENDPOINT};
 use crate::stremio_app::ipc;
 use native_windows_gui::{self as nwg, PartialUi};
 use once_cell::unsync::OnceCell;
@@ -220,6 +220,12 @@ impl PartialUi for WebView {
                                 return Ok(());
                             }
                             let msg = msg.try_get_web_message_as_string()?;
+                            if !is_ezra_source(&source)
+                                && serde_json::from_str::<ipc::RPCRequest>(&msg).ok().as_ref()
+                                    .and_then(ipc::RPCRequest::get_method) == Some(crate::stremio_app::ezra_playback::COMMAND)
+                            {
+                                return Ok(());
+                            }
                             tx_web.send(msg).ok();
                             Ok(())
                         }).expect("Cannot add web message received");
@@ -268,6 +274,15 @@ impl PartialUi for WebView {
                             window.addEventListener("load", function() {if(initShellComm) try { initShellComm() } catch(e) {}}, false)
 
                             "##, |_| Ok(())).expect("Cannot add script to webview");
+                            if wv.get_source().ok().as_deref().is_some_and(is_ezra_source) {
+                                let script = format!("window.__ezraCustomCss = {};\n{}",
+                                    json!(include_str!("../ezra_assets/custom.css")),
+                                    concat!(include_str!("../ezra_assets/library_model.js"), "\n",
+                                        include_str!("../ezra_assets/custom.js")));
+                                wv.execute_script(
+                                    &script, |_| Ok(()),
+                                ).ok();
+                            }
                             Ok(())
                         }).expect("Cannot add content loading");
 
@@ -400,6 +415,11 @@ fn trusted_origin(endpoint: &RefCell<Option<String>>) -> Option<url::Origin> {
         .as_deref()
         .and_then(|endpoint| url::Url::parse(endpoint).ok())
         .map(|endpoint| endpoint.origin())
+}
+
+fn is_ezra_source(uri: &str) -> bool {
+    let origin = url::Url::parse(WEB_ENDPOINT).ok().map(|url| url.origin());
+    same_origin(&origin, uri)
 }
 
 fn same_origin(trusted: &Option<url::Origin>, uri: &str) -> bool {

@@ -2,6 +2,13 @@
 
 A Windows-only shell using WebView2 and MPV
 
+### Ezra player controls and Library lists
+
+- **Ctrl+1–6** select the Anime4K HQ presets. **Ctrl+7** selects FSR and **Ctrl+8** clears shaders.
+- **Ctrl+B** toggles ambient border blur. **Ctrl+Shift+C** detects baked-in black bars on the current video. Press it again to restore the full frame.
+- Open **Lists** in Library to create lists, assign multiple titles, and sort or filter within a list. **Import lists** accepts the ZIP or JSON from Ezra’s Stremio Library backup.
+- Open **Ezra color theme** in Settings to switch between Ezra’s dark gradient and the official colors.
+
 Goals:
 * Performance
 * Reliability

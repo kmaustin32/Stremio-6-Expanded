@@ -5,6 +5,11 @@
     window.__ezraCustomStarted = true;
     const model = window.__ezraLibraryModel;
     const themeKey = 'ezra.custom.theme';
+    const watchedColorKey = 'ezra.custom.watched-color';
+    const watchedColors = new Map([
+        ['#dea066', 'Amber'], ['#7272c2', 'Purple'], ['#61d1c7', 'Teal'],
+        ['#e08eb3', 'Dusty rose'], ['#b6d283', 'Sage'],
+    ]);
     const libraryPath = () => /^#\/library(?:[/?]|$)/.test(location.hash);
     const playerPath = () => /^#\/player(?:\/|$)/.test(location.hash);
     let activeDialog;
@@ -40,6 +45,8 @@
     function applyTheme() {
         document.documentElement.toggleAttribute('data-ezra-theme', localStorage.getItem(themeKey) !== 'off');
         document.documentElement.toggleAttribute('data-ezra-playing', playerPath());
+        const color = localStorage.getItem(watchedColorKey);
+        document.documentElement.style.setProperty('--ezra-watched-color', watchedColors.has(color) ? color : '#dea066');
     }
 
     function openTheme() {
@@ -53,7 +60,16 @@
             applyTheme();
         };
         field.prepend(choice);
-        dialog.append(heading, field, button('Done', () => dialog.close()));
+        const color = options(watchedColors, 'Watched color');
+        const saved = localStorage.getItem(watchedColorKey);
+        color.value = watchedColors.has(saved) ? saved : '#dea066';
+        color.onchange = () => {
+            localStorage.setItem(watchedColorKey, color.value);
+            applyTheme();
+        };
+        const watched = element('label', 'Watched color');
+        watched.append(color);
+        dialog.append(heading, field, watched, button('Done', () => dialog.close()));
         dialog.addEventListener('close', () => dialog.remove(), {once: true});
         document.body.append(dialog);
         dialog.showModal();

@@ -15,7 +15,7 @@ html[data-ezra-theme]:not([data-ezra-playing]) body {
 }
 
 html[data-ezra-theme] :is([class*="watched-icon-"], [class*="watched-badge-"]) {
-    color: #dea066;
+    color: var(--ezra-watched-color, #dea066);
     fill: currentColor;
 }
 
@@ -42,6 +42,16 @@ html[data-ezra-theme] :is([class*="watched-icon-"], [class*="watched-badge-"]) {
 .ezra-dialog::backdrop { background: #0b0f18b8; }
 .ezra-dialog h2 { margin: 0 0 0.75rem; font-size: 1.4rem; }
 .ezra-dialog label { display: flex; align-items: center; gap: 0.5rem; }
+.ezra-dialog > label { margin-bottom: 0.65rem; }
+.ezra-dialog input:is([type="checkbox"], [type="radio"]) {
+    appearance: auto !important;
+    display: inline-block !important;
+    position: static !important;
+    opacity: 1 !important;
+    width: 1rem !important;
+    height: 1rem !important;
+    accent-color: var(--accent-color, #7272c2);
+}
 .ezra-dialog form, .ezra-assignment { display: grid; gap: 0.65rem; }
 .ezra-dialog p[role="alert"]:empty { display: none; }
 .ezra-dialog p[role="alert"] { color: #ffb2ac; }

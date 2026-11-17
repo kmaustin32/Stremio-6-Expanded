@@ -2,6 +2,22 @@
 
 A Windows-only shell using WebView2 and MPV
 
+## Stremio6-Custom releases and upstream updates
+
+Download the Windows installer or portable ZIP from [GitHub Releases](https://github.com/kmaustin32/Stremio6-Custom/releases). Stable fork tags use `custom-v<version>` so official Stremio tags can coexist with them.
+
+Use `codex/ezra-core-stable` as the base for a new integration branch when updating the official Windows shell. Add the upstream remote once per clone, then merge its latest `main` into the integration branch:
+
+```sh
+git remote add upstream https://github.com/Stremio/stremio-shell-ng.git
+git fetch upstream --no-tags main
+git switch codex/ezra-core-stable
+git switch -c codex/update-stremio-shell
+git merge upstream/main
+```
+
+Run Windows CI and check the Library toolbar, watched filters, poster menu and bulk selection with a signed-in library before merging the integration branch back. Check the blur, crop and shader shortcuts on actual playback as well. The hosted Stremio Web interface updates separately from the shell. If its Library structure changes, check that the custom controls appear and that saved lists still load before publishing another release.
+
 Goals:
 * Performance
 * Reliability

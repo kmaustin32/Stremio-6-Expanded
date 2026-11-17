@@ -15,7 +15,7 @@ jobs:
       with:
         fetch-depth: 0
     - name: Check version
-      if: startsWith(github.ref, 'refs/tags/')
+      if: startsWith(github.ref, 'refs/tags/v')
       run: node stremiover.js check
     - name: Stable with rustfmt and clippy
       uses: actions-rust-lang/setup-rust-toolchain@v1

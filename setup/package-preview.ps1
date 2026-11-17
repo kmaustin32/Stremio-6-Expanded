@@ -1,11 +1,11 @@
 param(
     [Parameter(Mandatory)]
-    [ValidatePattern('^v\d+\.\d+\.\d+-custom\.[1-9]\d*$')]
+    [ValidatePattern('^(?:custom-v\d+\.\d+\.\d+|v\d+\.\d+\.\d+-custom\.[1-9]\d*)$')]
     [string] $Tag
 )
 
 $ErrorActionPreference = 'Stop'
-$version = $Tag.Substring(1)
+$version = $Tag -replace '^(?:custom-)?v', ''
 $prefix = "Stremio6-Custom-$version-x64"
 $payload = (New-Item -ItemType Directory -Path 'preview-payload').FullName
 $out = (New-Item -ItemType Directory -Path 'preview-output').FullName

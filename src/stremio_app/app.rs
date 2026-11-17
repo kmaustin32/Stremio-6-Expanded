@@ -1,6 +1,5 @@
 use native_windows_derive::NwgUi;
 use native_windows_gui as nwg;
-use rand::Rng;
 use serde_json;
 use std::{
     cell::{Cell, RefCell},
@@ -27,8 +26,8 @@ use winapi::{
 
 use crate::stremio_app::{
     constants::{
-        safe_url, web_endpoint_with_streaming_server, APP_NAME, UPDATE_ENDPOINT, UPDATE_INTERVAL,
-        WEB_ENDPOINT, WINDOW_MIN_HEIGHT, WINDOW_MIN_WIDTH,
+        safe_url, web_endpoint_with_streaming_server, APP_NAME, UPDATE_INTERVAL, WEB_ENDPOINT,
+        WINDOW_MIN_HEIGHT, WINDOW_MIN_WIDTH,
     },
     ipc::{CacheDirectoryRequest, RPCRequest, RPCResponse},
     mpv_config,
@@ -288,13 +287,20 @@ impl MainWindow {
         let force_update = self.force_update;
         let release_candidate = self.release_candidate;
         let autoupdater_setup_file = self.autoupdater_setup_file.clone();
+        let auto_update_enabled = autoupdater_endpoint.is_some();
 
         thread::spawn(move || {
+            let Some(mut updater_endpoint) = autoupdater_endpoint else {
+                return;
+            };
+            if release_candidate {
+                updater_endpoint.query_pairs_mut().append_pair("rc", "true");
+            }
             loop {
-                if let Ok(msg) = updater_rx.recv() {
-                    if msg == "check_for_update" {
-                        break;
-                    }
+                match updater_rx.recv() {
+                    Ok(msg) if msg == "check_for_update" => break,
+                    Ok(_) => {}
+                    Err(_) => return,
                 }
             }
 
@@ -302,19 +308,6 @@ impl MainWindow {
                 let current_version = env!("CARGO_PKG_VERSION")
                     .parse()
                     .expect("Should always be valid");
-
-                let updater_endpoint = if let Some(ref endpoint) = autoupdater_endpoint {
-                    endpoint.clone()
-                } else {
-                    let mut rng = rand::thread_rng();
-                    let index = rng.gen_range(0..UPDATE_ENDPOINT.len());
-                    let mut url = Url::parse(UPDATE_ENDPOINT[index]).unwrap();
-                    url.query_pairs_mut().append_pair("arch", env!("ARCH"));
-                    if release_candidate {
-                        url.query_pairs_mut().append_pair("rc", "true");
-                    }
-                    url
-                };
 
                 let updater =
                     updater::Updater::new(current_version, &updater_endpoint, force_update);
@@ -482,9 +475,9 @@ impl MainWindow {
                         web_tx_web
                             .send(RPCResponse::visibility_change(true, 1, false))
                             .ok();
-                        updater_tx_web
-                            .send("check_for_update".to_owned())
-                            .expect("Failed to send value to updater channel");
+                        if auto_update_enabled {
+                            updater_tx_web.send("check_for_update".to_owned()).ok();
+                        }
 
                         open_sender_web.send(OpenRequest::Ready).ok();
                     }

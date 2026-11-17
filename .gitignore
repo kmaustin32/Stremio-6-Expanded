@@ -1,3 +1,5 @@
 /target
 /stremio*.exe
 /libmpv-2.dll
+/preview-payload/
+/preview-output/

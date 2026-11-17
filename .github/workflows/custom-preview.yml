@@ -1,0 +1,65 @@
+name: Build and publish Windows preview
+on:
+  push:
+    tags: ['v*-custom.*']
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Keep source line endings for version and formatting tests
+        run: git config --global core.autocrlf false
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+          target: x86_64-pc-windows-msvc
+          components: rustfmt, clippy
+      - name: Verify version and formatting
+        run: |
+          node stremiover.js check
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          cargo fmt --all -- --check
+      - name: Lint and test Windows
+        run: |
+          cargo clippy --all -- -D warnings
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          cargo test --target x86_64-pc-windows-msvc
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          node --test tests/ezra.test.cjs
+      - name: Compile x64 release
+        run: cargo build --locked --release --target x86_64-pc-windows-msvc
+      - name: Package and smoke-test installer and portable app
+        run: ./setup/package-preview.ps1 -Tag $env:GITHUB_REF_NAME
+      - name: Publish verified preview files
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $version = $env:GITHUB_REF_NAME.Substring(1)
+          $preview = $version.Substring($version.LastIndexOf('.') + 1)
+          $base = $version.Split('-')[0]
+          $notes = Join-Path $env:RUNNER_TEMP 'release-notes.md'
+          @"
+          Windows x64 preview based on Stremio $base.
+
+          - Ctrl+1–6 selects Anime4K, Ctrl+7 selects FSR, and Ctrl+8 clears shaders.
+          - Ctrl+B toggles ambient border blur. Ctrl+Shift+C detects baked-in black bars for the current video.
+          - Open **Lists** in Library for custom lists, sorting, filters, and old Ezra backup import.
+          - Open **Ezra color theme** in Settings for the dark gradient, purple accents, and watched colors.
+
+          Use the installer or extract the portable ZIP and run **Stremio6-Custom.exe**. The preview uses its own app profile. The installer adds its own Start menu entry and downloads WebView2 if needed.
+
+          Windows build and smoke tests: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          "@ | Set-Content -Encoding utf8 $notes
+          $assets = (Get-ChildItem preview-output -File).FullName
+          gh release create $env:GITHUB_REF_NAME @assets --repo $env:GITHUB_REPOSITORY --verify-tag --prerelease --latest=false --title "Stremio6-Custom $base Preview $preview" --notes-file $notes
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }

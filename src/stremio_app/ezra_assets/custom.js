@@ -351,7 +351,7 @@
             libraryToolbar.append(listButton);
         }
         const settings = /^#\/settings(?:[/?]|$)/.test(location.hash) &&
-            document.querySelector('[class*="settings-container-"]');
+            document.querySelector('[class*="settings-content-"]');
         if (settings && !settings.querySelector('#ezra-theme-button')) {
             const theme = button('Ezra color theme', openTheme);
             theme.id = 'ezra-theme-button';

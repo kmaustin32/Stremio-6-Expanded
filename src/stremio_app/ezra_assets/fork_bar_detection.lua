@@ -3,7 +3,7 @@
 -- which supports hardware decoding and the existing ambient border blur.
 local mp = require 'mp'
 local label = 'stremio-fork-black-bars'
-local timer, started, baseline_crop, locked_crop
+local timer, started, baseline_crop, locked_crop, locked_geometry
 local last_time, stable_since, previous, samples
 local edge_candidate, download_format
 
@@ -37,7 +37,43 @@ local function reset_crop()
     if locked_crop and mp.get_property('video-crop') == locked_crop then
         mp.set_property('file-local-options/video-crop', baseline_crop or '')
     end
-    locked_crop = nil
+    locked_crop, locked_geometry = nil, nil
+end
+
+local function resize_locked_crop()
+    local r = locked_geometry
+    if not r then return end
+    local width = mp.get_property_number('video-out-params/w', 0)
+    local height = mp.get_property_number('video-out-params/h', 0)
+    if width <= 0 or height <= 0 or (width == r.applied_w and height == r.applied_h) then return end
+    local current = mp.get_property('video-crop', '')
+    -- mpv clears an oversized crop when GPU processing is switched off. A
+    -- different nonempty crop belongs to the user and must not be replaced.
+    if current ~= '' and current ~= locked_crop then
+        locked_crop, locked_geometry = nil, nil
+        status('idle')
+        return
+    end
+    -- Always map from the original confirmed rectangle to avoid rounding drift
+    -- when processing is toggled repeatedly. Round inward at confirmed edges.
+    local x = math.ceil(r.x * width / r.frame_w - 0.000001)
+    local y = math.ceil(r.y * height / r.frame_h - 0.000001)
+    local right = math.floor((r.x + r.w) * width / r.frame_w + 0.000001)
+    local bottom = math.floor((r.y + r.h) * height / r.frame_h + 0.000001)
+    if right <= x or bottom <= y then
+        reset_crop()
+        status('idle', 'Video size changed. Ctrl+Shift+C detects black bars again.')
+        return
+    end
+    local crop = string.format('%dx%d+%d+%d', right - x, bottom - y, x, y)
+    if not mp.set_property('file-local-options/video-crop', crop) then
+        reset_crop()
+        status('error', 'Could not update black-bar crop: detect black bars again.')
+        return
+    end
+    r.applied_w, r.applied_h = width, height
+    locked_crop = crop
+    status('locked')
 end
 
 local function rectangle(meta)
@@ -106,6 +142,8 @@ local function finish(r)
         return
     end
     locked_crop = crop
+    locked_geometry = {x = r.x, y = r.y, w = r.w, h = r.h,
+        frame_w = width, frame_h = height, applied_w = width, applied_h = height}
     status('locked', 'Black bars removed for this video. Ctrl+Shift+C restores the full frame.')
 end
 
@@ -162,6 +200,9 @@ local function detect()
         status('detecting', 'Detecting black bars...')
         return
     end
+    if locked_crop and mp.get_property('video-crop', '') ~= locked_crop then
+        locked_crop, locked_geometry = nil, nil
+    end
     if locked_crop then
         reset_crop()
         status('idle', 'Full frame restored. Ctrl+Shift+C detects black bars again.')
@@ -196,6 +237,7 @@ end
 
 mp.register_script_message('detect', detect)
 mp.add_key_binding('Ctrl+Shift+c', 'detect-black-bars', detect)
+mp.register_event('video-reconfig', resize_locked_crop)
 mp.register_event('start-file', function() reset_crop(); baseline_crop = nil; status('idle') end)
 mp.register_event('end-file', function() reset_crop(); baseline_crop = nil; status('idle') end)
 mp.register_event('shutdown', stop_sampling)

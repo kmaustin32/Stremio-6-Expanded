@@ -7,14 +7,16 @@ const assets = path.join(__dirname, '../src/stremio_app/ezra_assets');
 const {install} = require(path.join(assets, 'library_adapter.js'));
 const {decodeLists, classifyLists, moveTitles, previewListImport} = require(path.join(assets, 'fork-lists.js'));
 
-test('recognizes the three hosted components and keeps other scopes on their native render paths', () => {
-    const native = {createElement(type, props, ...children) { return {type, props, children}; }, useEffect() {}};
+for (const memoized of [false, true]) test(`adapts ${memoized ? 'memoized' : 'plain'} hosted cards and keeps other scopes native`, () => {
+    const native = {createElement(type, props, ...children) { return {type, props, children}; }, useEffect() {},
+        memo(type, compare) { return {$$typeof:Symbol.for('react.memo'), type, compare}; }};
+    const compare = (previous, next) => previous === next;
     const items = {MainNavBars() {}, LibItem() {}};
     const libStyles = {'library-content':'native-content', 'meta-items-container':'native-cards'};
     const profile = {auth:{user:{_id:'local'}}};
     const notifications = {items:{}};
     const hosted = {
-        react:native, items, libStyles,
+        react:native, items, libStyles, memoized, compare,
         hooks:{useProfile:()=>profile, useNotifications:()=>notifications},
         router:{useNavigate:()=>()=>42, useLocation() {}},
     };
@@ -32,7 +34,9 @@ test('recognizes the three hosted components and keeps other scopes on their nat
         card(module, _, require) {
             /* "LIBRARY_PLAY" detailsVideosFirst */
             const react = require('react');
-            module.exports = _ => react.createElement('card', {options:['native'], optionOnSelect:() => {}});
+            const component = _ => react.createElement('card', {options:['native'], optionOnSelect:() => {}});
+            component.displayName = 'NativeCard';
+            module.exports = require('memoized') ? react.memo(component, require('compare')) : component;
         },
         board(module, _, require) {
             /* ["board-content"] ["board-spotlight"] */
@@ -63,10 +67,60 @@ test('recognizes the three hosted components and keeps other scopes on their nat
     }
     assert.equal(load('library')('library'), 'inline Ezra Library');
     assert.equal(load('library')('continue_watching').children[0], 'native body');
-    assert.deepEqual(load('card')({optionOnSelect:()=> 'Add to list'}).props.options, ['native', 'Add to list']);
-    assert.deepEqual(load('card')({}).props.options, ['native']);
+    const card = load('card');
+    if (memoized) {
+        assert.equal(card.$$typeof, Symbol.for('react.memo'));
+        assert.equal(card.compare, compare, 'Keep the hosted memo comparison');
+    }
+    const render = memoized ? card.type : card;
+    assert.equal(render.displayName, 'NativeCard');
+    assert.deepEqual(render({optionOnSelect:()=> 'Add to list'}).props.options, ['native', 'Add to list']);
+    assert.deepEqual(render({}).props.options, ['native']);
+    assert.throws(() => render({optionOnSelect:()=> {throw new Error('menu-failure');}}), /menu-failure/);
+    assert.deepEqual(render({}).props.options, ['native'], 'A failed render must not leak a menu handler');
     assert.equal(load('board')(), 'Featured Movies then lists');
     assert.equal(install({}, hook), false);
+});
+
+test('retries a timed-out list load, shares the retry, and preserves saved membership', async () => {
+    let now = 100000, timerId = 0, recovered = false;
+    const timers = new Map(), requests = [], handlers = new Map();
+    const record = {version:1, revision:4, lists:[{id:'favorites',name:'Favorites',items:['tt1']}]};
+    const profile = JSON.stringify({auth:{user:{_id:'fixture'}}});
+    const window = {addEventListener() {}, dispatchEvent() {}};
+    window.self = window.top = window;
+    window.chrome = {webview:{addEventListener:(name, callback)=>handlers.set(name, callback),
+        postMessage(raw) {
+            const request = JSON.parse(raw).args[1];
+            requests.push(request);
+            if (recovered) queueMicrotask(() => handlers.get('message')({data:{args:
+                ['fork-library-store-result',{requestId:request.requestId,record}]}}));
+        }}};
+    const context = {window, location:{origin:'https://web.stremio.com',hash:'#/library'},
+        localStorage:{getItem:key => key === 'profile' ? profile : null},
+        crypto:require('node:crypto').webcrypto,
+        Date:class extends Date {static now() {return now;}},
+        setTimeout(callback, delay) {timers.set(++timerId,{callback,delay}); return timerId;},
+        clearTimeout:id=>timers.delete(id), Event:class {},
+        document:{body:null,head:{append() {}},createElement:()=>({}),addEventListener() {}}};
+    vm.runInNewContext(fs.readFileSync(path.join(assets,'fork-lists.js'),'utf8'), context);
+    const api = window.__stremioForkLists;
+    const initial = assert.rejects(api.exportLists(), /unavailable/);
+    await new Promise(setImmediate);
+    assert.equal(requests.length, 1);
+    now += 5000;
+    for (const {callback,delay} of [...timers.values()]) if (delay === 5000) callback();
+    await initial;
+    recovered = true;
+    await assert.rejects(api.exportLists(), /unavailable/);
+    assert.equal(requests.length, 1, 'Cooldown must prevent a retry loop');
+    now += 5000;
+    const [first, second] = await Promise.all([api.exportLists(), api.exportLists()]);
+    assert.equal(requests.length, 2, 'Concurrent readers must share one retry');
+    assert.deepEqual(JSON.parse(JSON.stringify(first)), JSON.parse(JSON.stringify(second)));
+    assert.deepEqual(Array.from(first.lists.find(list=>list.id === 'favorites').items), ['tt1']);
+    await api.exportLists();
+    assert.equal(requests.length, 2, 'Keep the successfully recovered record cached');
 });
 
 test('keeps saved list membership and honors manual Anime/Live Action moves', () => {

@@ -109,7 +109,7 @@
 
     function loadLists(uid) {
         let entry = savedLists.get(uid);
-        if (entry) return entry;
+        if (entry && (!entry.error || Date.now() < entry.retryAt)) return entry;
         entry = {};
         savedLists.set(uid, entry);
         entry.ready = Promise.resolve().then(() => {
@@ -119,6 +119,9 @@
             entry.legacyUnreadable = legacyUnreadable === true;
         }).catch(() => {
             entry.error = 'Saved lists could not be read.';
+            // The Library polls for changes. Retry transient storage failures
+            // after a short cooldown without creating a tight error loop.
+            entry.retryAt = Date.now() + 5000;
         }).finally(() => window.dispatchEvent(new Event(changeEvent)));
         return entry;
     }

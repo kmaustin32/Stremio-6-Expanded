@@ -52,6 +52,19 @@
         });
 
         let cardHandler;
+        function wrapCard(component) {
+            if (component?.$$typeof === Symbol.for('react.memo')) {
+                const type = wrapCard(component.type);
+                return type === component.type ? component : {...component, type};
+            }
+            if (typeof component !== 'function') return component;
+            return Object.assign(function EzraLibraryCard(props) {
+                const previous = cardHandler;
+                cardHandler = props.optionOnSelect;
+                try { return component(props); }
+                finally { cardHandler = previous; }
+            }, component);
+        }
         factories[card[0]] = scopedFactory(card[1], loaded => {
             if (!isReact(loaded)) return loaded;
             return {...loaded, createElement(type, props, ...children) {
@@ -61,14 +74,7 @@
                 return loaded.createElement(type, props, ...children);
             }};
         }, module => {
-            const original = module.exports;
-            if (typeof original !== 'function') return;
-            module.exports = Object.assign(function EzraLibraryCard(props) {
-                const previous = cardHandler;
-                cardHandler = props.optionOnSelect;
-                try { return original(props); }
-                finally { cardHandler = previous; }
-            }, original);
+            module.exports = wrapCard(module.exports);
         });
 
         factories[board[0]] = scopedFactory(board[1], loaded => {

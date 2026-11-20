@@ -3,6 +3,7 @@ import argparse
 import ctypes as c
 from ctypes import wintypes as w
 import json
+import math
 from pathlib import Path
 import shutil
 import subprocess
@@ -168,10 +169,23 @@ def run(args, script, assets, ffmpeg, output):
         assert prop('video-crop') == crop
         check_blurred_frame()
         setprop('glsl-shaders', '')
+        setprop('hwdec', 'no')
+        # Keep a confirmed crop across output resizing, including repeated
+        # round trips. Derive the expected edges from the original rectangle.
+        for width, height in [(640, 480), (160, 120), (320, 240), (640, 480), (320, 240)]:
+            command('vf', 'add', f'@playback-resize:lavfi=[scale={width}:{height}:flags=neighbor]')
+            top = math.ceil(31 * height / 240)
+            bottom = math.floor(209 * height / 240)
+            expected = f'{width}x{bottom - top}+0+{top}'
+            wait(lambda: prop('video-out-params/w') == str(width) and
+                 prop('video-crop') == expected and state() == 'locked')
+            check_blurred_frame()
+        assert prop('video-crop') == crop, 'Resize round trips must not accumulate crop rounding'
+        command('vf', 'remove', '@playback-resize')
         command('script-message-to', 'fork_bar_detection', 'detect')
         wait(lambda: state() == 'idle')
         assert not prop('video-crop')
-        print('PASS: baked-in bars crop and blur without a filter, FSR preserves the crop, shortcut message restores framing')
+        print('PASS: crop/blur, FSR, resizing without drift, and one-press full-frame restoration')
 
         # Video-out dimensions can differ from decoder dimensions. Validate
         # actual rendered pixels so accepting a crop cannot hide a bad mapping.
@@ -204,11 +218,20 @@ def run(args, script, assets, ffmpeg, output):
                 assert 'gpu-processing' in prop('vf')
                 assert prop('hwdec-current') == decoder
                 check_blurred_frame()
+                original = prop('video-crop')
+                command('vf', 'remove', '@gpu-processing')
+                wait(lambda: prop('video-out-params/w') == '320' and
+                     prop('video-crop') == '320x178+0+31' and state() == 'locked')
+                check_blurred_frame()
+                command('vf', 'add', '@gpu-processing:d3d11vpp=scale=2' + format_option)
+                wait(lambda: prop('video-out-params/w') == '640' and
+                     prop('video-crop') == original and state() == 'locked')
+                check_blurred_frame()
                 command('script-message-to', 'fork_bar_detection', 'detect')
                 wait(lambda: state() == 'idle')
                 assert not prop('video-crop')
                 command('vf', 'remove', '@gpu-processing')
-            print('PASS: GPU video processing, 8/10-bit output, decoder and filter preservation')
+            print('PASS: GPU on/off retains framing, 8/10-bit output, decoder and filter preservation')
             setprop('hwdec', 'no')
 
         for name in ['full', 'dark', 'uneven', 'full-faint-edges']:

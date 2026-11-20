@@ -6,7 +6,7 @@ A Windows fork of [Stremio's official Rust shell](https://github.com/Stremio/str
 
 Get the Windows x64 installer or portable ZIP from the [latest stable release](https://github.com/kmaustin32/Stremio6-Custom/releases/latest). To use the portable build, extract the ZIP and run `Stremio6-Custom.exe`. The installer uses a separate app profile and Start menu entry and installs WebView2 if needed.
 
-**5.0.29** fixes black-bar detection refusing a crop when decoded and processed video sizes differ. Detection now supports GPU-processed frames while preserving hardware decoding and existing processing filters. Use **Ctrl+Shift+C** to detect baked-in bars, then **Ctrl+B** to enable ambient blur.
+**5.0.30** restores the custom poster-menu actions after Stremio's web interface update, preserves detected framing when GPU processing changes video size, and automatically retries temporary errors loading saved lists.
 
 ## Library lists and sorting
 
@@ -14,6 +14,7 @@ Get the Windows x64 installer or portable ZIP from the [latest stable release](h
 - Sort or filter within the selected list. The toolbar supports **A–Z**, **Z–A**, **Last Watched**, **Watched**, and **Not Watched**, alongside the movie and series filter.
 - Use **Add to list** in a title's three-dot menu. **Ctrl+click** selects titles for a bulk edit, and a title can belong to multiple custom lists.
 - Anime and Live Action are filled automatically. Manual moves are saved, and custom lists can be shown on Home. Lists are saved on this computer for each Stremio account.
+- Temporary errors loading saved lists retry automatically after a short delay.
 
 ## Playback shortcuts
 
@@ -25,7 +26,7 @@ Get the Windows x64 installer or portable ZIP from the [latest stable release](h
 | **Ctrl+7** | Select FSR upscaling. |
 | **Ctrl+8** | Clear the active shaders. |
 
-Black-bar detection measures the frames after video processing, including GPU-resized output. It preserves the selected decoder and existing processing filters. Detection leaves blur under your control; use **Ctrl+B** after cropping to fill the newly exposed space.
+Black-bar detection measures the frames after video processing, including GPU-resized output. It preserves the selected decoder and existing processing filters. The confirmed framing follows video-size changes when GPU processing is toggled. Detection leaves blur under your control; use **Ctrl+B** after cropping to fill the newly exposed space.
 
 ## Stremio6-Custom releases and upstream updates
 

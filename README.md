@@ -23,6 +23,8 @@ Get the Windows x64 installer or portable ZIP from the [latest stable release](h
 | **Ctrl+7** | Select FSR upscaling. |
 | **Ctrl+8** | Clear the active shaders. |
 
+Black-bar detection measures the frames after video processing, including GPU-resized output. It preserves the selected decoder and existing processing filters. Detection leaves blur under your control; use **Ctrl+B** after cropping to fill the newly exposed space.
+
 ## Stremio6-Custom releases and upstream updates
 
 Stable fork tags use `custom-v<version>` so official Stremio tags can coexist with them. Start from this fork's `main` when creating an integration branch to bring in an official shell update. Add the upstream remote once per clone.

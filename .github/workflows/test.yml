@@ -31,4 +31,6 @@ jobs:
       run: cargo test --target x86_64-pc-windows-msvc
     - name: Test Library hooks and playback shortcuts
       run: node --test tests/ezra-core.test.cjs
+    - name: Test black-bar detection and rendered blur
+      run: python tests/black_bar_detection.py --dll libmpv-2.dll --ffmpeg bin/ffmpeg.exe
 

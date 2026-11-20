@@ -3,9 +3,9 @@
 -- which supports hardware decoding and the existing ambient border blur.
 local mp = require 'mp'
 local label = 'stremio-fork-black-bars'
-local timer, started, saved_hwdec, baseline_crop, locked_crop
+local timer, started, baseline_crop, locked_crop
 local last_time, stable_since, previous, samples
-local edge_candidate
+local edge_candidate, download_format
 
 local function status(state, message)
     mp.set_property_native('user-data/stremio-bar-detection', {
@@ -22,13 +22,14 @@ local function stop_sampling()
             break
         end
     end
-    if saved_hwdec then
-        -- Do not overwrite a hardware-decoding change made by the user.
-        if mp.get_property('hwdec') == 'auto-copy' then
-            mp.set_property('hwdec', saved_hwdec)
-        end
-        saved_hwdec = nil
-    end
+end
+
+local function detector_filter(limit)
+    -- GPU processing can produce hardware frames even with a copy-back decoder.
+    -- Download only while sampling, after the existing filters, and keep the
+    -- selected decoder and processing pipeline intact.
+    local download = download_format ~= '' and ('hwdownload,format=' .. download_format .. ',') or ''
+    return '@' .. label .. ':lavfi=[' .. download .. 'cropdetect=limit=' .. limit .. '/255:round=2:reset=0]'
 end
 
 local function reset_crop()
@@ -61,17 +62,12 @@ local function refined_axis(start, size, candidate_start, candidate_size, minimu
 end
 
 local function finish(r)
-    local width = mp.get_property_number('width', 0)
-    local height = mp.get_property_number('height', 0)
+    -- The detector runs at the end of the filter chain, in the same pixel
+    -- coordinates that the VO uses for video-crop. Keep those dimensions before
+    -- removing the temporary filter, which can reconfigure the video output.
+    local width = r and r.frame_w or 0
+    local height = r and r.frame_h or 0
     stop_sampling()
-    local decoded_w = mp.get_property_number('video-dec-params/w', width)
-    local decoded_h = mp.get_property_number('video-dec-params/h', height)
-    local output_w = mp.get_property_number('video-out-params/w', width)
-    local output_h = mp.get_property_number('video-out-params/h', height)
-    if decoded_w ~= output_w or decoded_h ~= output_h then
-        status('uncertain', 'A video filter changes picture size: black-bar crop not applied.')
-        return
-    end
     if not r or width <= 0 or height <= 0 or r.x < 0 or r.y < 0 or
         r.w < width * 0.5 or r.h < height * 0.5 or
         r.x + r.w > width or r.y + r.h > height then
@@ -124,7 +120,11 @@ local function sample()
     end
     if not last_time or position > last_time + 0.01 then
         local r = rectangle(mp.get_property_native('vf-metadata/' .. label))
-        local key = r and string.format('%d:%d:%d:%d', r.w, r.h, r.x, r.y)
+        if r then
+            r.frame_w = mp.get_property_number('video-out-params/w', 0)
+            r.frame_h = mp.get_property_number('video-out-params/h', 0)
+        end
+        local key = r and string.format('%d:%d:%d:%d:%d:%d', r.w, r.h, r.x, r.y, r.frame_w, r.frame_h)
         if key and key == previous then
             samples = samples + 1
         else
@@ -134,11 +134,11 @@ local function sample()
         end
         last_time = position
         if samples >= 6 and now - stable_since >= 0.5 then
-            if not edge_candidate then
+            if not edge_candidate or edge_candidate.frame_w ~= r.frame_w or edge_candidate.frame_h ~= r.frame_h then
                 edge_candidate = r
                 -- Measure the conservative baseline independently. Replacing our
                 -- labelled filter retains unrelated filters and resets metadata.
-                if not mp.commandv('no-osd', 'vf', 'add', '@' .. label .. ':cropdetect=limit=20/255:round=2:reset=0') then
+                if not mp.commandv('no-osd', 'vf', 'add', detector_filter(20)) then
                     stop_sampling()
                     status('error', 'Black-bar detection unavailable: picture unchanged.')
                     return
@@ -177,18 +177,10 @@ local function detect()
         return
     end
     baseline_crop = mp.get_property('video-crop', '')
-    local hardware = mp.get_property('hwdec-current', 'no')
-    if hardware ~= 'no' and not hardware:find('%-copy$') then
-        saved_hwdec = mp.get_property('hwdec', 'no')
-        if not mp.set_property('hwdec', 'auto-copy') then
-            saved_hwdec = nil
-            status('error', 'Black-bar detection unavailable with this decoder.')
-            return
-        end
-    end
+    download_format = mp.get_property('video-out-params/hw-pixelformat', '')
     -- Accumulate the largest bright picture across frames, rather than crop to
     -- a single dark frame. Remove this labelled filter when sampling finishes.
-    local ok = mp.commandv('no-osd', 'vf', 'pre', '@' .. label .. ':cropdetect=limit=32/255:round=2:reset=0')
+    local ok = mp.commandv('no-osd', 'vf', 'add', detector_filter(32))
     if not ok then
         stop_sampling()
         status('error', 'Black-bar detection unavailable: picture unchanged.')

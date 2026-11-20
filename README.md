@@ -6,6 +6,8 @@ A Windows fork of [Stremio's official Rust shell](https://github.com/Stremio/str
 
 Get the Windows x64 installer or portable ZIP from the [latest stable release](https://github.com/kmaustin32/Stremio6-Custom/releases/latest). To use the portable build, extract the ZIP and run `Stremio6-Custom.exe`. The installer uses a separate app profile and Start menu entry and installs WebView2 if needed.
 
+**5.0.29** fixes black-bar detection refusing a crop when decoded and processed video sizes differ. Detection now supports GPU-processed frames while preserving hardware decoding and existing processing filters. Use **Ctrl+Shift+C** to detect baked-in bars, then **Ctrl+B** to enable ambient blur.
+
 ## Library lists and sorting
 
 - Create and manage lists directly from the Library toolbar. Use the **All**, **Anime**, **Live Action**, and **Most Watched** chips or select a custom list from the dropdown.

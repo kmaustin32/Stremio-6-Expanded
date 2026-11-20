@@ -31,6 +31,12 @@ jobs:
       run: cargo test --target x86_64-pc-windows-msvc
     - name: Test Library hooks and playback shortcuts
       run: node --test tests/ezra-core.test.cjs
+    - name: Install hosted Library compatibility test tools
+      run: npm install --prefix .ci-tools --no-save --ignore-scripts --no-audit --no-fund playwright@1.62.1
+    - name: Test current hosted Library compatibility
+      env:
+        NODE_PATH: ${{ github.workspace }}/.ci-tools/node_modules
+      run: node tests/hosted-library.cjs
     - name: Test black-bar detection and rendered blur
       run: python tests/black_bar_detection.py --dll libmpv-2.dll --ffmpeg bin/ffmpeg.exe
 

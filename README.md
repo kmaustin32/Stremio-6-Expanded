@@ -43,6 +43,10 @@ git merge upstream/main
 
 Run Windows CI and check the Library toolbar, watched filters, poster menu, and bulk selection with a signed-in library before merging the integration branch into `main`. Check blur, crop, and shader shortcuts during playback. The hosted Stremio Web interface updates separately from the shell. If its Library structure changes, check that the custom controls appear and saved lists still load.
 
+The source now includes official upstream changes through [`e148e2a`](https://github.com/Stremio/stremio-shell-ng/commit/e148e2a6801b4af3afd143262f2280a866da7c87), adding support for the `sub-bold` and `force-media-title` player properties. This source update is newer than the 5.0.30 downloadable release.
+
+Windows CI and release builds also run a real hosted-Library compatibility test with dummy data in an isolated browser. It checks custom menu actions, category moves, list-only removal, bulk selection, filters and list creation without using a real account. See [the upstream update checks](docs/UPSTREAM.md) before integrating future updates. These checks cover known regressions; future hosted-interface changes can still require an adapter update.
+
 ## Shell architecture
 
 Goals:

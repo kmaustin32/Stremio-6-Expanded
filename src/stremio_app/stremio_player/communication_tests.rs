@@ -177,6 +177,19 @@ fn set_propr_tokens() {
 }
 
 #[test]
+fn upstream_subtitle_bold_and_media_title_roundtrip() {
+    for value in [
+        serde_json::json!(["mpv-set-prop", ["sub-bold", true]]),
+        serde_json::json!(["mpv-set-prop", ["sub-bold", false]]),
+        serde_json::json!(["mpv-set-prop", ["force-media-title", "Episode 2 — 字幕"]]),
+    ] {
+        let request: InMsg = serde_json::from_value(value.clone()).unwrap();
+        assert_eq!(request.0, InMsgFn::MpvSetProp);
+        assert_eq!(serde_json::to_value(request).unwrap(), value);
+    }
+}
+
+#[test]
 fn set_gpu_video_processing_tokens() {
     assert_tokens(
         &InMsg(InMsgFn::MpvSetGpuVideoProcessing, InMsgArgs::Flag(true)),

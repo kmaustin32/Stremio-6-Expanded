@@ -88,6 +88,8 @@ AppName=Stremio6-Custom
 AppVersion=5.0.30
 DefaultDirName=$legacyInstall
 PrivilegesRequired=lowest
+ArchitecturesAllowed=x64compatible
+ArchitecturesInstallIn64BitMode=x64compatible
 DisableProgramGroupPage=yes
 OutputBaseFilename=legacy-setup
 [Files]

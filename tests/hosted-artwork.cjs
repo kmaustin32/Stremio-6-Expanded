@@ -105,7 +105,7 @@ const artwork = ['episode_artwork.js','artwork.js'].map(name =>
                 window.changeArtwork = changes => set(previous => ({...previous,...changes}));
                 const url = name => name ? 'https://artwork.test/' + name + '/' + state.id + '.svg' : undefined;
                 const video = {id:state.anime ? `tt0290223:3:${state.id}` : 'fixture:'+state.id,title:'Episode '+state.id,season:3,episode:state.id,
-                    thumbnail:state.anime ? (state.noThumbnail ? undefined : `https://episodes.metahub.space/tt0290223/3/${state.id}/w780.jpg`) : url(state.thumbnail),
+                    thumbnail:state.anime ? (state.samePoster ? url(state.poster) : state.noThumbnail ? undefined : `https://episodes.metahub.space/tt0290223/3/${state.id}/w780.jpg`) : url(state.thumbnail),
                     altThumbnail:url(state.alt),watched:state.watched,progress:0,
                     deepLinks:{metaDetailsStreams:'stremio:///detail/series/fixture',player:null}};
                 const next = {...video,id:'tt0290223:3:2',title:'Episode 2',episode:2,
@@ -188,8 +188,10 @@ const artwork = ['episode_artwork.js','artwork.js'].map(name =>
         await episodeCheck(2);
         await episodeCheck(1);
         await episodeCheck(1,true);
+        await page.evaluate(()=>window.changeArtwork({samePoster:true}));
+        await episodeCheck(2);
         assert.equal(metadataRequests,1,'Episode views share one cached public catalog');
-        await page.evaluate(()=>window.changeArtwork({id:1,noThumbnail:false,extraEpisode:true}));
+        await page.evaluate(()=>window.changeArtwork({id:1,noThumbnail:false,samePoster:false,extraEpisode:true}));
         for(const scope of ['details','player']) await page.waitForFunction(scope=>{
             const images=[...document.querySelectorAll(`[data-artwork-scope="${scope}"] img`)];
             for(const img of images)img.loading='eager';

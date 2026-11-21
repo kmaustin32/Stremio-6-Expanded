@@ -88,7 +88,7 @@
             const generic = isArtwork ? urls(context.generic,fallbackSrc) : urls(fallbackSrc);
             const specific = urls(episode && generic.includes(src) ? [] : src,
                 isArtwork ? context.specific : [],matching?.thumbnail,thumbnails(matching),
-                metadata ? episodeArt.sources(episode,metadata) : []);
+                metadata ? episodeArt.sources(episode,metadata) : []).filter(url=>!episode || !generic.includes(url));
             const identity = JSON.stringify([src,context.episode?.id,context.episode?.season,context.episode?.episode,
                 context.specific,context.generic,fallbackSrc]);
             const current = React.useRef(identity);

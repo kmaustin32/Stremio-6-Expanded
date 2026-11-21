@@ -14,8 +14,9 @@ fork to upstream or using a blanket conflict strategy.
 
 Keep Library integration in `ezra_library.rs` and `ezra_assets/fork-lists.js` /
 `library_adapter.js`, and playback controls in `ezra_playback.rs` and its assets.
-Keep artwork compatibility in `ezra_assets/artwork.js`. Library and artwork
-factory wrappers preserve the original factory's `toString` contract so they can
+Keep artwork compatibility in `ezra_assets/artwork.js` and episode numbering/
+metadata logic in `ezra_assets/episode_artwork.js`. Library and artwork factory
+wrappers preserve the original factory's `toString` contract so they can
 compose without hiding component signatures from each other.
 Review changes to the native message routing, player initialization, app profile,
 installer identity and packaging as well as direct edits to those modules.
@@ -24,8 +25,10 @@ installer identity and packaging as well as direct edits to those modules.
 
 - Run Windows formatting, clippy and Rust tests, including the player message
   contract and server lifecycle tests.
-- Run `node --test tests/ezra-core.test.cjs`. This checks plain/memoized poster
+- Run `node --test tests/ezra-core.test.cjs tests/episode-artwork.test.cjs`. This checks plain/memoized poster
   components, list-loading recovery, saved membership and playback shortcuts.
+  Episode checks cover absolute numbering, specials, missing URLs, incomplete
+  season catalogs, distinct adjacent episodes and cached credential-free metadata.
 - Run the hosted Library check below. It checks actual current Stremio components
   using dummy Library data and an in-memory bridge in a fresh browser profile.
 - Run `node tests/hosted-artwork.cjs` with the same browser tools. It renders the

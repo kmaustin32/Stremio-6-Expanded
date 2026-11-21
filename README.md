@@ -8,11 +8,13 @@ Get the Windows x64 installer or portable ZIP from the [releases page](https://g
 
 **5.0.30** restores the custom poster-menu actions after Stremio's web interface update, preserves detected framing when GPU processing changes video size, and automatically retries temporary errors loading saved lists.
 
-**Current source: 5.0.31.** The project is now **Stremio 6 Expanded**, with reliable artwork fallbacks across the app. Upgrading preserves existing lists, player settings, streaming-server data and browser profiles. The installer retains compatibility with shortcuts targeting the old executable and replaces the old Start menu entry. Internal storage keys and the original installer identity intentionally stay the same to protect existing data.
+**5.0.32** restores Ezra's episode-specific anime thumbnail fallback. The project is now **Stremio 6 Expanded**. Upgrading preserves existing lists, player settings, streaming-server data and browser profiles. The installer retains compatibility with shortcuts targeting the old executable and replaces the old Start menu entry. Internal storage keys and the original installer identity intentionally stay the same to protect existing data.
 
 ## Artwork that keeps working
 
-Home and Library posters, episode details, the player episode panel and the next-episode popup handle missing URLs and failed downloads. They try available alternate artwork, then the show's poster and background, before showing a placeholder. A new episode or updated image URL starts a fresh attempt. Unwatched-episode blur stays on the replacement image, and watched previews keep their normal appearance. These fallbacks use artwork already present in the title's metadata or saved Library; no extra artwork service or private stream URL is needed.
+Home and Library posters, episode details, the player episode panel and the next-episode popup handle missing URLs and failed downloads. Episode previews try artwork for that episode before using the show's poster/background or a placeholder. Ezra's anime fallback translates seasonal numbering into absolute episode numbers when the artwork provider keeps all episodes under season 1: Inuyasha S3E17, for example, uses overall episode 71. Specials are excluded from that offset, and incomplete episode lists are not used to guess a number.
+
+If a view lacks the full episode catalog needed for the conversion, an image failure can trigger a cached public Cinemeta lookup using only the title's IMDb ID. Working images do not trigger that lookup. No account credentials or stream URLs are sent. Unwatched-episode blur stays on every replacement image, watched previews remain clear, and changing episodes selects that episode's own artwork.
 
 ## Library lists and sorting
 

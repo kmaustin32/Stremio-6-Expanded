@@ -328,6 +328,7 @@ impl PartialUi for WebView {
                         webview.add_script_to_execute_on_document_created(concat!(
                             include_str!("../ezra_assets/fork-lists.js"), "\n",
                             include_str!("../ezra_assets/library_adapter.js"), "\n",
+                            include_str!("../ezra_assets/episode_artwork.js"), "\n",
                             include_str!("../ezra_assets/artwork.js"), "\n",
                             include_str!("../ezra_assets/playback_shortcuts.js"),
                         ), move |_| {

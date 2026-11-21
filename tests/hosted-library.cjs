@@ -7,7 +7,7 @@ const path = require('node:path');
 const assets = path.join(__dirname, '../src/stremio_app/ezra_assets/');
 const manifest = fs.readFileSync(path.join(__dirname, '../Cargo.toml'), 'utf8');
 const shellVersion = manifest.match(/^version\s*=\s*"([^"]+)"/m)[1];
-const injected = ['fork-lists.js','library_adapter.js','artwork.js','playback_shortcuts.js']
+const injected = ['fork-lists.js','library_adapter.js','episode_artwork.js','artwork.js','playback_shortcuts.js']
     .map(name => fs.readFileSync(path.join(assets, name), 'utf8')).join('\n');
 
 (async () => {

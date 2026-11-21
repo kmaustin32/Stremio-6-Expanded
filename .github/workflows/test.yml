@@ -29,8 +29,8 @@ jobs:
       run: cargo clippy --all -- -D warnings
     - name: Test
       run: cargo test --target x86_64-pc-windows-msvc
-    - name: Test Library hooks and playback shortcuts
-      run: node --test tests/ezra-core.test.cjs
+    - name: Test Library, playback shortcuts and episode artwork logic
+      run: node --test tests/ezra-core.test.cjs tests/episode-artwork.test.cjs
     - name: Install hosted Library compatibility test tools
       run: npm install --prefix .ci-tools --no-save --ignore-scripts --no-audit --no-fund playwright@1.62.1
     - name: Test current hosted Library compatibility

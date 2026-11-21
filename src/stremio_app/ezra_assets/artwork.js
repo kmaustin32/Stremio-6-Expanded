@@ -1,11 +1,15 @@
 (() => {
     'use strict';
+    const episodeArt = typeof module !== 'undefined' && module.exports
+        ? require('./episode_artwork.js') : window.__stremioExpandedEpisodeArtwork;
+    const lookup = episodeArt && (episodeArt.lookup || episodeArt.createLookup((...args)=>globalThis.fetch(...args)));
     const missing = 'data:image/png;base64,';
     const urls = (...values) => [...new Set(values.flat(Infinity).map(value =>
         typeof value === 'string' ? value.trim() : value?.src).filter(value =>
         typeof value === 'string' && value.length > 0 && value !== missing))];
     const alternatives = item => urls(item?.altThumbnail, item?.alternativeThumbnail, item?.thumbnails,
         item?.altPoster, item?.alternativePoster, item?.posters);
+    const thumbnails = item => urls(item?.altThumbnail, item?.alternativeThumbnail, item?.thumbnails);
 
     function install(factories) {
         const entries = Object.entries(factories);
@@ -13,7 +17,7 @@
             const source = factory.toString();
             return source.includes('fallbackSrc') && source.includes('renderFallback') && source.includes('onError:');
         });
-        if (images.length !== 1) return false;
+        if (images.length !== 1 || !episodeArt) return false;
         const imageId = images[0][0];
         let React, Context;
         const captureReact = loaded => {
@@ -37,16 +41,21 @@
                         libraryItems = JSON.parse(raw)?.items || {};
                     }
                 }
-                return libraryItems[id];
+                return libraryItems[id] || libraryItems[episodeArt.imdbId({id},null)];
             } catch (_) { return null; }
         }
         function derive(props, parent) {
             const show = props.metaItem || props.meta || savedItem(props._id || props.id) || parent.show;
-            const video = props.nextVideo || props.video ||
-                show?.videos?.find(item => item.id === props.id) || props;
-            const candidates = urls(video.thumbnail, alternatives(video), alternatives(props),
-                props.fallbackSrc, props.poster, show?.poster, props.background, show?.background);
-            return {show, candidates: urls(candidates, parent.candidates), failed: parent.failed};
+            const sameShow = !show?.id || !parent.show?.id || show.id === parent.show.id;
+            const episode = props.nextVideo || props.video ||
+                (Array.isArray(show?.videos) && show.videos.find(item => item.id === props.id)) ||
+                (Number.isSafeInteger(props.season) && Number.isSafeInteger(props.episode) ? props : null) ||
+                (sameShow ? parent.episode : null);
+            const specific = episode ? urls(episode.thumbnail, thumbnails(episode), thumbnails(props),episodeArt.sources(episode,show))
+                : alternatives(props);
+            const generic = urls(props.poster,show?.poster,props.background,show?.background,sameShow ? parent.generic : []);
+            // Inherit show artwork, never another episode's thumbnail.
+            return {show,episode,specific,generic,candidates:urls(specific,generic),failed:parent.failed};
         }
         function wrap(component, needsThumbnail) {
             if (component?.$$typeof === Symbol.for('react.memo'))
@@ -59,7 +68,7 @@
                 // Some native episode views omit the entire image when its URL is absent.
                 // The marker reaches our Image component without making a network request.
                 const supplied = needsThumbnail && !urls(props.thumbnail).length
-                    ? {...props, thumbnail: context.candidates[0] || missing} : props;
+                    ? {...props, thumbnail: context.specific[0] || missing} : props;
                 return React.createElement(Context.Provider, {value: context},
                     React.createElement(component, forwarded || ref ? {...supplied, ref} : supplied));
             });
@@ -71,15 +80,35 @@
         function ArtworkImage({src, fallbackSrc, renderFallback, ...props}) {
             const context = React.useContext(Context);
             const isArtwork = /(?:poster-image|thumbnail|artwork|still|\bimage-)/.test(props.className || '');
-            const sources = urls(src, isArtwork ? context.candidates : [], fallbackSrc);
-            const identity = JSON.stringify(sources);
+            const episode = isArtwork ? context.episode : null;
+            const id = episodeArt.imdbId(episode,context.show);
+            const [catalog,setCatalog] = React.useState({id:null,done:false,meta:null});
+            const metadata = catalog.id === id ? catalog.meta : null;
+            const matching = metadata?.videos.find(item=>item.season === episode?.season && item.episode === episode?.episode);
+            const generic = isArtwork ? urls(context.generic,fallbackSrc) : urls(fallbackSrc);
+            const specific = urls(episode && generic.includes(src) ? [] : src,
+                isArtwork ? context.specific : [],matching?.thumbnail,thumbnails(matching),
+                metadata ? episodeArt.sources(episode,metadata) : []);
+            const identity = JSON.stringify([src,context.episode?.id,context.episode?.season,context.episode?.episode,
+                context.specific,context.generic,fallbackSrc]);
             const current = React.useRef(identity);
             current.current = identity;
             const [failure, setFailure] = React.useState({identity, urls: []});
             const failed = failure.identity === identity ? failure.urls : [];
-            const source = sources.find(url => !failed.includes(url) && !context.failed?.includes(url));
+            const available = url => !failed.includes(url) && !context.failed?.includes(url);
+            const primary = specific.find(available);
+            const wantsCatalog = Boolean(!primary && episode?.season > 1 && id &&
+                episodeArt.absoluteNumber(episode,context.show) === null && !(catalog.id === id && catalog.done));
+            React.useEffect(() => {
+                if (!wantsCatalog) return;
+                let active = true;
+                lookup(id).then(meta => { if (active) setCatalog({id,done:true,meta}); });
+                return () => { active = false; };
+            },[id,wantsCatalog]);
+            if (wantsCatalog) return React.createElement('span',{className:props.className,style:props.style,'aria-hidden':true});
+            const source = primary || generic.find(available);
             if (!source) return typeof renderFallback === 'function'
-                ? React.createElement(Context.Provider, {value: {...context,
+                ? React.createElement(Context.Provider, {value: {...context,show:metadata || context.show,
                     failed: urls(context.failed, failed)}}, renderFallback()) : null;
             return React.createElement('img', {...props, src: source, loading: props.loading || 'lazy',
                 onError(event) {

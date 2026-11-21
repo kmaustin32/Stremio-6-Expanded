@@ -3,7 +3,8 @@ const {chromium} = require('playwright');
 const fs = require('node:fs');
 const path = require('node:path');
 const assert = require('node:assert/strict');
-const artwork = fs.readFileSync(path.join(__dirname, '../src/stremio_app/ezra_assets/artwork.js'), 'utf8');
+const artwork = ['episode_artwork.js','artwork.js'].map(name =>
+    fs.readFileSync(path.join(__dirname, '../src/stremio_app/ezra_assets',name),'utf8')).join('\n');
 
 (async () => {
     const browser = await chromium.launch({headless:true, executablePath:[process.env.STREMIO_TEST_BROWSER,
@@ -13,6 +14,7 @@ const artwork = fs.readFileSync(path.join(__dirname, '../src/stremio_app/ezra_as
         const page = await browser.newPage({viewport:{width:1440,height:1000}});
         page.setDefaultTimeout(10000);
         const errors = [], requests = [];
+        let metadataRequests = 0;
         page.on('pageerror', error => errors.push(error.message));
         await page.route('**/scripts/main.js', async route => {
             const response = await route.fetch();
@@ -26,6 +28,20 @@ const artwork = fs.readFileSync(path.join(__dirname, '../src/stremio_app/ezra_as
             requests.push(url);
             return route.fulfill(url.includes('/broken') ? {status:404,body:'missing'} : {
                 contentType:'image/svg+xml', body:'<svg xmlns="http://www.w3.org/2000/svg" width="320" height="180"><rect width="320" height="180" fill="#7272c2"/><circle cx="160" cy="90" r="50" fill="#dea066"/></svg>'});
+        });
+        const seasonEntries = [1,2].flatMap(season=>Array.from({length:27},(_,i)=>({season,episode:i+1})));
+        await page.route('https://v3-cinemeta.strem.io/meta/series/tt0290223.json',route=>{
+            metadataRequests++;
+            return route.fulfill({json:{meta:{id:'tt0290223',videos:[...seasonEntries,
+                ...[1,2].map(episode=>({id:`tt0290223:3:${episode}`,season:3,episode,
+                    thumbnail:`https://episodes.metahub.space/tt0290223/3/${episode}/w780.jpg`}))]}}});
+        });
+        await page.route('https://episodes.metahub.space/tt0290223/**',route=>{
+            const url=route.request().url();
+            requests.push(url);
+            const number=/\/1\/(55|56)\/w780.jpg$/.exec(url)?.[1] ||
+                (url.endsWith('/3/3/w780.jpg') ? '3' : null);
+            return route.fulfill(number ? {contentType:'image/svg+xml',body:`<svg xmlns="http://www.w3.org/2000/svg" width="320" height="180"><rect width="320" height="180" fill="${number==='55'?'#dea066':'#61d1c7'}"/><text x="100" y="100">Episode ${number}</text></svg>`} : {status:404,body:'missing'});
         });
         await page.addInitScript({content:String.raw`
             (window.webpackChunkstremio ||= []).push([['artwork-fixture'],{},require => {
@@ -88,11 +104,14 @@ const artwork = fs.readFileSync(path.join(__dirname, '../src/stremio_app/ezra_as
                 const [state, set] = React.useState({id:1, thumbnail:'broken-primary',alt:'alternate',poster:'poster',background:'background',watched:false});
                 window.changeArtwork = changes => set(previous => ({...previous,...changes}));
                 const url = name => name ? 'https://artwork.test/' + name + '/' + state.id + '.svg' : undefined;
-                const video = {id:'fixture:'+state.id,title:'Episode '+state.id,season:3,episode:state.id,
-                    thumbnail:url(state.thumbnail),altThumbnail:url(state.alt),watched:state.watched,progress:0,
+                const video = {id:state.anime ? `tt0290223:3:${state.id}` : 'fixture:'+state.id,title:'Episode '+state.id,season:3,episode:state.id,
+                    thumbnail:state.anime ? (state.noThumbnail ? undefined : `https://episodes.metahub.space/tt0290223/3/${state.id}/w780.jpg`) : url(state.thumbnail),
+                    altThumbnail:url(state.alt),watched:state.watched,progress:0,
                     deepLinks:{metaDetailsStreams:'stremio:///detail/series/fixture',player:null}};
-                const show = {id:'fixture',name:'Show',type:'series',poster:url(state.poster),background:url(state.background),
-                    links:[],videos:[video]};
+                const next = {...video,id:'tt0290223:3:2',title:'Episode 2',episode:2,
+                    thumbnail:'https://episodes.metahub.space/tt0290223/3/2/w780.jpg'};
+                const show = {id:state.anime ? 'tt0290223' : 'fixture',name:'Show',type:'series',poster:url(state.poster),background:url(state.background),
+                    links:[],videos:state.extraEpisode ? [video,next] : [video]};
                 // Obtain the real parent provider by rendering the actual player drawer below.
                 return el(React.Fragment,null,
                     wrap('home',el(Home,{...video,name:show.name,poster:show.poster,background:show.background,hideSpoilers:!state.watched})),
@@ -152,9 +171,34 @@ const artwork = fs.readFileSync(path.join(__dirname, '../src/stremio_app/ezra_as
         const exhausted = requests.length;
         await check({id:9,thumbnail:'primary',alt:'alternate',poster:'poster',background:'background'},'primary');
         assert.ok(requests.length > exhausted, 'New episode must recover after all prior images were absent');
+        assert.equal(metadataRequests,0,'Working/non-episodic images must not start metadata lookups');
+        async function episodeCheck(number,noThumbnail=false,expected=`/1/${54+number}/w780.jpg`) {
+            await page.evaluate(({number,noThumbnail})=>window.changeArtwork({id:number,anime:true,alt:undefined,noThumbnail}),{number,noThumbnail});
+            for(const scope of scopes.filter(scope=>scope!=='library')) {
+                await page.waitForFunction(({scope,expected})=>{
+                    const images=[...document.querySelectorAll(`[data-artwork-scope="${scope}"] img`)];
+                    for(const img of images)img.loading='eager';
+                    return images.some(img=>img.complete&&img.naturalWidth>0&&img.src.endsWith(expected));
+                },{scope,expected});
+                assert.ok(await page.locator(`[data-artwork-scope="${scope}"] img`).first().evaluate(img=>getComputedStyle(img).filter.includes('blur(')),`${scope}: episode fallback remains blurred`);
+            }
+        }
+        await episodeCheck(3,false,'/3/3/w780.jpg');
+        assert.equal(metadataRequests,0,'A working episode image does not fetch an extra catalog');
+        await episodeCheck(2);
+        await episodeCheck(1);
+        await episodeCheck(1,true);
+        assert.equal(metadataRequests,1,'Episode views share one cached public catalog');
+        await page.evaluate(()=>window.changeArtwork({id:1,noThumbnail:false,extraEpisode:true}));
+        for(const scope of ['details','player']) await page.waitForFunction(scope=>{
+            const images=[...document.querySelectorAll(`[data-artwork-scope="${scope}"] img`)];
+            for(const img of images)img.loading='eager';
+            const loaded=images.filter(img=>img.complete&&img.naturalWidth>0).map(img=>img.src);
+            return loaded.some(src=>src.endsWith('/1/55/w780.jpg'))&&loaded.some(src=>src.endsWith('/1/56/w780.jpg'))&&loaded.length===2;
+        },scope);
         assert.deepEqual(errors,[]);
         const output = process.env.STREMIO_UI_TEST_OUTPUT;
         if (output) { fs.mkdirSync(output,{recursive:true}); await page.screenshot({path:path.join(output,'artwork-fallback.png')}); }
-        console.log('PASS: real hosted Home, Library, details, player episode drawer, next-episode popup and still images; missing/broken URLs, alternates, show fallback, blur, watched state and episode changes.');
+        console.log('PASS: real hosted artwork views; missing/broken URLs, episode-specific anime numbering, distinct adjacent episode images, shared metadata lookup, no-URL recovery, blur and watched state.');
     } finally { await browser.close(); }
 })().catch(error => {console.error(error);process.exitCode=1;});

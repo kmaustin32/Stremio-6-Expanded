@@ -41,7 +41,7 @@ jobs:
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           cargo test --locked --target x86_64-pc-windows-msvc
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          node --test tests/ezra-core.test.cjs
+          node --test tests/ezra-core.test.cjs tests/episode-artwork.test.cjs
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           python tests/black_bar_detection.py --dll libmpv-2.dll --ffmpeg bin/ffmpeg.exe
       - name: Install hosted Library compatibility test tools
@@ -85,7 +85,7 @@ jobs:
           - Use the Library toolbar to choose lists, sort, and filter watched titles. Use the poster's three-dot menu to add a title to a list, or Ctrl+click to select several titles.
           - Ctrl+Shift+C detects baked-in black bars for the current video. Press it again to restore the full frame. Ctrl+B toggles ambient border blur.
           - Ctrl+1–6 selects Anime4K, Ctrl+7 selects FSR, and Ctrl+8 clears shaders.
-          - Missing or broken artwork tries alternates, then the show's poster/background, across Home, Library, episode details and player previews. Unwatched replacements retain spoiler blur.
+          - Missing or broken episode thumbnails try episode-specific artwork, including Ezra's absolute anime numbering fallback, before using show artwork. Home, Library, details and player previews keep their artwork fallbacks and unwatched-episode blur.
 
           Use the installer or extract the portable ZIP and run **Stremio 6 Expanded.exe**. Stremio 6 Expanded uses its own app profile. The installer adds its own Start menu entry and downloads WebView2 if needed.
 

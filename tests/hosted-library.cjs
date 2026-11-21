@@ -102,7 +102,7 @@ const injected = ['fork-lists.js','library_adapter.js','artwork.js','playback_sh
         await toolbar.getByText('Anime',{exact:true}).click();
         await page.waitForURL('**/*forkList=anime*');
         await page.getByText('Anime Two',{exact:true}).waitFor();
-        assert.equal(await page.getByText('Zeta',{exact:true}).count(),0);
+        await page.getByText('Zeta',{exact:true}).waitFor({state:'detached'});
         const listChips = toolbar.locator('[class*="chips-"]').first();
         await listChips.getByText('All',{exact:true}).click();
         await page.waitForURL('**/*forkList=all*');
@@ -135,7 +135,7 @@ const injected = ['fork-lists.js','library_adapter.js','artwork.js','playback_sh
         await page.getByText(/^Movies?$/).click();
         await page.waitForURL(url=>url.hash.startsWith('#/library/movie?'));
         await page.getByText('Alpha',{exact:true}).waitFor();
-        assert.equal(await page.getByText('Anime Two',{exact:true}).count(),0);
+        await page.getByText('Anime Two',{exact:true}).waitFor({state:'detached'});
         await toolbar.locator('.fork-library-type').click();
         await page.locator('[class*="option-"][class*="button-container-"]').filter({hasText:/^All$/}).click();
         await page.waitForURL(url=>url.hash.startsWith('#/library?'));
@@ -143,6 +143,10 @@ const injected = ['fork-lists.js','library_adapter.js','artwork.js','playback_sh
         await toolbar.locator('.fork-library-sort').click();
         await page.getByText('Z–A',{exact:true}).click();
         await page.waitForURL('**/*sort=namereverse*');
+        await page.waitForFunction(() => {
+            const cards = [...document.querySelectorAll('[class*="meta-item-container-"]')];
+            return cards[0]?.textContent.includes('Anime Two') && cards[1]?.textContent.includes('Alpha');
+        });
         const sortedCards = await page.locator('[class*="meta-item-container-"]').allTextContents();
         assert.ok(sortedCards[0].includes('Anime Two') && sortedCards[1].includes('Alpha'), sortedCards);
         await listChips.getByText('All',{exact:true}).click();
@@ -158,7 +162,7 @@ const injected = ['fork-lists.js','library_adapter.js','artwork.js','playback_sh
         await toolbar.locator('.fork-library-sort').click();
         await page.getByText('Not Watched',{exact:true}).click();
         await page.waitForURL('**/*sort=notwatched*');
-        assert.equal(await page.getByText('Alpha',{exact:true}).count(),0);
+        await page.getByText('Alpha',{exact:true}).waitFor({state:'detached'});
         await toolbar.getByRole('button',{name:'Create list',exact:true}).click();
         const dialog = page.getByRole('dialog',{name:'Create list'});
         await dialog.getByRole('textbox',{name:'List name'}).fill('Weekend');

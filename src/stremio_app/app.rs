@@ -709,7 +709,7 @@ impl MainWindow {
         let choice = nwg::modal_message(
             &self.window,
             &nwg::MessageParams {
-                title: "Stremio",
+                title: APP_NAME,
                 content: details,
                 buttons: nwg::MessageButtons::RetryCancel,
                 icons: nwg::MessageIcons::Error,

@@ -1,3 +1,4 @@
+use super::constants::APP_NAME;
 use native_windows_derive::NwgPartial;
 use native_windows_gui as nwg;
 
@@ -7,7 +8,7 @@ pub struct SystemTray {
     pub embed: nwg::EmbedResource,
     #[nwg_resource(source_embed: Some(&data.embed), source_embed_str: Some("MAINICON"))]
     pub tray_icon: nwg::Icon,
-    #[nwg_control(icon: Some(&data.tray_icon), tip: Some("Stremio"))]
+    #[nwg_control(icon: Some(&data.tray_icon), tip: Some(APP_NAME))]
     #[nwg_events(OnContextMenu: [Self::show_menu])]
     pub tray: nwg::TrayNotification,
     #[nwg_control(popup: true)]

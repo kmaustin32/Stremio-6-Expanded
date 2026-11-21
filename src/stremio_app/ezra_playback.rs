@@ -51,7 +51,7 @@ impl Playback {
     pub fn new(mpv: &Mpv) -> Result<Self> {
         let directory = dirs::data_local_dir()
             .context("Local application data is unavailable")?
-            .join("Stremio6-Custom")
+            .join(super::constants::APP_DATA_NAME)
             .join("Playback");
         fs::create_dir_all(&directory)?;
         for (name, bytes) in SHADERS {

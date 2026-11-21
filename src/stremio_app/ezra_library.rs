@@ -66,7 +66,10 @@ fn process(request: &Value) -> Result<Value> {
     );
     let data = dirs::data_local_dir().context("Local Library storage is unavailable")?;
     let filename = format!("{:x}.json", Sha256::digest(uid.as_bytes()));
-    let path = data.join("Stremio6-Custom").join("Library").join(&filename);
+    let path = data
+        .join(super::constants::APP_DATA_NAME)
+        .join("Library")
+        .join(&filename);
     let mut record = match read(&path)? {
         Some(record) => record,
         None => {

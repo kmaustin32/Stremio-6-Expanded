@@ -1,5 +1,5 @@
 use super::process::{ServerEvent, ServerProcess};
-use crate::stremio_app::constants::{APP_NAME, STREMIO_SERVER_DEV_MODE};
+use crate::stremio_app::constants::{APP_DATA_NAME, STREMIO_SERVER_DEV_MODE};
 use native_windows_gui::{self as nwg, PartialUi};
 use std::{env, os::windows::process::CommandExt, process::Command, time::Duration};
 use winapi::um::winbase::CREATE_NO_WINDOW;
@@ -36,7 +36,7 @@ fn server_command() -> Result<Command, String> {
     path.pop();
     let mut command = Command::new(path.join("stremio-runtime.exe"));
     if let Some(data) = dirs::data_local_dir() {
-        let data = data.join(APP_NAME).join("Server");
+        let data = data.join(APP_DATA_NAME).join("Server");
         command.env("APP_PATH", &data);
         if env::var_os("STREMIO_CACHE_PATH").is_none() {
             command.env("STREMIO_CACHE_PATH", data.join("Cache"));

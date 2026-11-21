@@ -6,11 +6,11 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $version = $Tag -replace '^(?:custom-)?v', ''
-$prefix = "Stremio6-Custom-$version-x64"
+$prefix = "Stremio-6-Expanded-$version-x64"
 $payload = (New-Item -ItemType Directory -Path 'preview-payload').FullName
 $out = (New-Item -ItemType Directory -Path 'preview-output').FullName
 
-Copy-Item 'target/x86_64-pc-windows-msvc/release/stremio-shell-ng.exe' (Join-Path $payload 'Stremio6-Custom.exe')
+Copy-Item 'target/x86_64-pc-windows-msvc/release/stremio-shell-ng.exe' (Join-Path $payload 'Stremio 6 Expanded.exe')
 Copy-Item 'libmpv-2.dll', 'server.js', 'README.md' $payload
 Copy-Item -Path 'bin/*' -Destination $payload
 
@@ -19,12 +19,12 @@ if (!(Test-Path -LiteralPath $iscc)) {
     choco install innosetup --no-progress -y
     if ($LASTEXITCODE) { throw "Could not install Inno Setup ($LASTEXITCODE)." }
 }
-& $iscc "/DPayloadDir=$payload" "/DPreviewVersion=$version" "/O$out" 'setup/Stremio6-Custom.iss'
+& $iscc "/DPayloadDir=$payload" "/DPreviewVersion=$version" "/O$out" 'setup/Stremio-6-Expanded.iss'
 if ($LASTEXITCODE) { throw "Installer compilation failed ($LASTEXITCODE)." }
 
 $zip = Join-Path $out "$prefix.zip"
 Compress-Archive -Path "$payload/*" -DestinationPath $zip
-$portable = Join-Path $env:RUNNER_TEMP 'stremio6-custom-portable'
+$portable = Join-Path $env:RUNNER_TEMP 'stremio-6-expanded-portable'
 Expand-Archive -Path $zip -DestinationPath $portable
 
 function Compare-Payload([string] $Directory) {
@@ -36,9 +36,9 @@ function Compare-Payload([string] $Directory) {
     }
 }
 
-function Start-And-Check([string] $Directory) {
-    $env:WEBVIEW2_USER_DATA_FOLDER = Join-Path $env:RUNNER_TEMP 'stremio6-custom-test-profile'
-    $app = Start-Process -FilePath (Join-Path $Directory 'Stremio6-Custom.exe') -ArgumentList '--no-splash', '--start-hidden' -WorkingDirectory $Directory -WindowStyle Hidden -PassThru
+function Start-And-Check([string] $Directory, [string] $Executable = 'Stremio 6 Expanded.exe') {
+    $env:WEBVIEW2_USER_DATA_FOLDER = Join-Path $env:RUNNER_TEMP 'stremio-6-expanded-test-profile'
+    $app = Start-Process -FilePath (Join-Path $Directory $Executable) -ArgumentList '--no-splash', '--start-hidden' -WorkingDirectory $Directory -WindowStyle Hidden -PassThru
     try {
         $deadline = (Get-Date).AddSeconds(45)
         do {
@@ -59,18 +59,63 @@ function Start-And-Check([string] $Directory) {
 }
 
 Compare-Payload $portable
+if ((Get-Item (Join-Path $portable 'Stremio 6 Expanded.exe')).VersionInfo.ProductName -ne 'Stremio 6 Expanded') {
+    throw 'The executable product name did not change.'
+}
 Start-And-Check $portable
 
-$install = Join-Path $env:LOCALAPPDATA 'Programs/Stremio6-Custom'
+$install = Join-Path $env:LOCALAPPDATA 'Programs/Stremio 6 Expanded'
 $installer = Join-Path $out "$prefix-Setup.exe"
 $process = Start-Process -FilePath $installer -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/SP-' -WindowStyle Hidden -Wait -PassThru
 if ($process.ExitCode) { throw "Installer smoke test failed ($($process.ExitCode))." }
 Compare-Payload $install
+$shortcut = Join-Path ([Environment]::GetFolderPath('Programs')) 'Stremio 6 Expanded.lnk'
+if (!(Test-Path -LiteralPath $shortcut)) { throw 'The renamed Start menu shortcut is missing.' }
 Start-And-Check $install
 $uninstall = Start-Process -FilePath (Join-Path $install 'unins000.exe') -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART' -WindowStyle Hidden -Wait -PassThru
-if ($uninstall.ExitCode -or (Test-Path -LiteralPath (Join-Path $install 'Stremio6-Custom.exe'))) {
+if ($uninstall.ExitCode -or (Test-Path -LiteralPath (Join-Path $install 'Stremio 6 Expanded.exe'))) {
     throw 'Installer uninstall smoke test failed.'
 }
+
+# Exercise the previous installer identity and executable name in an isolated CI account.
+$legacyRoot = (New-Item -ItemType Directory -Path (Join-Path $env:RUNNER_TEMP 'expanded-legacy-upgrade')).FullName
+$legacySetup = Join-Path $legacyRoot 'legacy.iss'
+$legacyInstall = Join-Path $env:LOCALAPPDATA 'Programs/Stremio6-Custom'
+@"
+[Setup]
+AppId={{A73EA706-283D-4D1F-9580-2EFE5349F72D}
+AppName=Stremio6-Custom
+AppVersion=5.0.30
+DefaultDirName=$legacyInstall
+PrivilegesRequired=lowest
+DisableProgramGroupPage=yes
+OutputBaseFilename=legacy-setup
+[Files]
+Source: "$payload\Stremio 6 Expanded.exe"; DestDir: "{app}"; DestName: "Stremio6-Custom.exe"
+[Icons]
+Name: "{userprograms}\Stremio6-Custom"; Filename: "{app}\Stremio6-Custom.exe"
+"@ | Set-Content -LiteralPath $legacySetup -Encoding utf8
+& $iscc "/O$legacyRoot" $legacySetup
+if ($LASTEXITCODE) { throw 'The legacy installer fixture did not compile.' }
+$legacy = Start-Process -FilePath (Join-Path $legacyRoot 'legacy-setup.exe') -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/SP-' -WindowStyle Hidden -Wait -PassThru
+if ($legacy.ExitCode) { throw 'The legacy installer fixture did not install.' }
+$profileMarker = Join-Path $legacyInstall 'Stremio6-Custom.exe.WebView2/upgrade-test.txt'
+New-Item -ItemType Directory -Path (Split-Path $profileMarker) | Out-Null
+'preserve-browser-profile' | Set-Content -LiteralPath $profileMarker
+$upgrade = Start-Process -FilePath $installer -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/SP-' -WindowStyle Hidden -Wait -PassThru
+if ($upgrade.ExitCode) { throw 'Upgrade from the previous installer identity failed.' }
+Compare-Payload $legacyInstall
+if ((Get-Content -LiteralPath $profileMarker) -ne 'preserve-browser-profile') { throw 'The existing browser profile was overwritten.' }
+if (Test-Path -LiteralPath (Join-Path ([Environment]::GetFolderPath('Programs')) 'Stremio6-Custom.lnk')) { throw 'The old Start menu shortcut was not replaced.' }
+$target = (New-Object -ComObject WScript.Shell).CreateShortcut($shortcut).TargetPath
+if ($target -ne (Join-Path $legacyInstall 'Stremio 6 Expanded.exe')) { throw 'The new shortcut does not target the upgraded installation.' }
+if ((Get-FileHash (Join-Path $legacyInstall 'Stremio6-Custom.exe')).Hash -ne (Get-FileHash (Join-Path $payload 'Stremio 6 Expanded.exe')).Hash) {
+    throw 'An existing pinned shortcut would launch an outdated executable.'
+}
+Start-And-Check $legacyInstall
+Start-And-Check $legacyInstall 'Stremio6-Custom.exe'
+$uninstall = Start-Process -FilePath (Join-Path $legacyInstall 'unins000.exe') -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART' -WindowStyle Hidden -Wait -PassThru
+if ($uninstall.ExitCode) { throw 'Upgraded installation did not uninstall.' }
 
 $checksums = Get-ChildItem -LiteralPath $out -File | ForEach-Object {
     "$((Get-FileHash -Algorithm SHA256 -LiteralPath $_.FullName).Hash.ToLowerInvariant())  $($_.Name)"

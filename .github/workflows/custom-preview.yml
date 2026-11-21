@@ -1,5 +1,6 @@
 name: Build and publish Windows release
 on:
+  workflow_dispatch:
   push:
     tags: ['custom-v*', 'v*-custom.*']
 
@@ -25,12 +26,14 @@ jobs:
           components: rustfmt, clippy
       - name: Verify version and formatting
         run: |
-          $version = $env:GITHUB_REF_NAME -replace '^(?:custom-)?v', ''
-          $base = $version.Split('-')[0]
           $metadata = cargo metadata --no-deps --format-version 1 | ConvertFrom-Json
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           $package = $metadata.packages | Where-Object name -eq 'stremio-shell-ng'
+          $tag = if ($env:GITHUB_REF_TYPE -eq 'tag') { $env:GITHUB_REF_NAME } else { "custom-v$($package.version)" }
+          $version = $tag -replace '^(?:custom-)?v', ''
+          $base = $version.Split('-')[0]
           if ($package.version -ne $base) { throw "Tag $env:GITHUB_REF_NAME does not match Cargo version $($package.version)." }
+          "PACKAGE_TAG=$tag" >> $env:GITHUB_ENV
           cargo fmt --all -- --check
       - name: Lint and test Windows
         run: |
@@ -47,18 +50,29 @@ jobs:
         env:
           NODE_PATH: ${{ github.workspace }}/.ci-tools/node_modules
         run: node tests/hosted-library.cjs
+      - name: Test hosted artwork fallbacks and spoiler blur
+        env:
+          NODE_PATH: ${{ github.workspace }}/.ci-tools/node_modules
+        run: node tests/hosted-artwork.cjs
       - name: Compile x64 release
         run: cargo build --locked --release --target x86_64-pc-windows-msvc
       - name: Package and smoke-test installer and portable app
-        run: ./setup/package-preview.ps1 -Tag $env:GITHUB_REF_NAME
+        run: ./setup/package-preview.ps1 -Tag $env:PACKAGE_TAG
+      - name: Upload tested Windows packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: Stremio-6-Expanded-Windows-x64
+          path: preview-output/*
+          if-no-files-found: error
       - name: Publish verified release files
+        if: github.ref_type == 'tag'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           $ErrorActionPreference = 'Stop'
           $version = $env:GITHUB_REF_NAME -replace '^(?:custom-)?v', ''
           $base = $version.Split('-')[0]
-          $title = "Stremio6-Custom $base"
+          $title = "Stremio 6 Expanded $base"
           $flags = @('--latest')
           if ($version -match '-custom\.(\d+)$') {
             $title += " Preview $($Matches[1])"
@@ -71,8 +85,9 @@ jobs:
           - Use the Library toolbar to choose lists, sort, and filter watched titles. Use the poster's three-dot menu to add a title to a list, or Ctrl+click to select several titles.
           - Ctrl+Shift+C detects baked-in black bars for the current video. Press it again to restore the full frame. Ctrl+B toggles ambient border blur.
           - Ctrl+1–6 selects Anime4K, Ctrl+7 selects FSR, and Ctrl+8 clears shaders.
+          - Missing or broken artwork tries alternates, then the show's poster/background, across Home, Library, episode details and player previews. Unwatched replacements retain spoiler blur.
 
-          Use the installer or extract the portable ZIP and run **Stremio6-Custom.exe**. Stremio6-Custom uses its own app profile. The installer adds its own Start menu entry and downloads WebView2 if needed.
+          Use the installer or extract the portable ZIP and run **Stremio 6 Expanded.exe**. Stremio 6 Expanded uses its own app profile. The installer adds its own Start menu entry and downloads WebView2 if needed.
 
           Windows build and smoke tests: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
           "@ | Set-Content -Encoding utf8 $notes

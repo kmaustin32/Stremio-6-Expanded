@@ -18,7 +18,7 @@ use crate::stremio_app::{
 };
 
 #[derive(Parser, Debug)]
-#[clap(version)]
+#[clap(name = "Stremio 6 Expanded", version)]
 struct Opt {
     command: Option<String>,
     #[clap(

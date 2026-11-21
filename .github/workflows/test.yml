@@ -37,6 +37,10 @@ jobs:
       env:
         NODE_PATH: ${{ github.workspace }}/.ci-tools/node_modules
       run: node tests/hosted-library.cjs
+    - name: Test hosted artwork fallbacks and spoiler blur
+      env:
+        NODE_PATH: ${{ github.workspace }}/.ci-tools/node_modules
+      run: node tests/hosted-artwork.cjs
     - name: Test black-bar detection and rendered blur
       run: python tests/black_bar_detection.py --dll libmpv-2.dll --ffmpeg bin/ffmpeg.exe
 

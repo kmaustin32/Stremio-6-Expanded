@@ -1,12 +1,18 @@
-# Stremio6-Custom
+# Stremio 6 Expanded
 
 A Windows fork of [Stremio's official Rust shell](https://github.com/Stremio/stremio-shell-ng), using WebView2 and mpv. It brings Ezra's Library lists and playback shortcuts to the official Stremio interface.
 
 ## Download
 
-Get the Windows x64 installer or portable ZIP from the [latest stable release](https://github.com/kmaustin32/Stremio6-Custom/releases/latest). To use the portable build, extract the ZIP and run `Stremio6-Custom.exe`. The installer uses a separate app profile and Start menu entry and installs WebView2 if needed.
+Get the Windows x64 installer or portable ZIP from the [releases page](https://github.com/kmaustin32/Stremio-6-Expanded/releases). New builds use `Stremio 6 Expanded.exe` and a **Stremio 6 Expanded** Start menu entry. Existing 5.0.30 downloads retain their original Stremio6-Custom name. The installer installs WebView2 if needed.
 
 **5.0.30** restores the custom poster-menu actions after Stremio's web interface update, preserves detected framing when GPU processing changes video size, and automatically retries temporary errors loading saved lists.
+
+**Current source: 5.0.31.** The project is now **Stremio 6 Expanded**, with reliable artwork fallbacks across the app. Upgrading preserves existing lists, player settings, streaming-server data and browser profiles. The installer retains compatibility with shortcuts targeting the old executable and replaces the old Start menu entry. Internal storage keys and the original installer identity intentionally stay the same to protect existing data.
+
+## Artwork that keeps working
+
+Home and Library posters, episode details, the player episode panel and the next-episode popup handle missing URLs and failed downloads. They try available alternate artwork, then the show's poster and background, before showing a placeholder. A new episode or updated image URL starts a fresh attempt. Unwatched-episode blur stays on the replacement image, and watched previews keep their normal appearance. These fallbacks use artwork already present in the title's metadata or saved Library; no extra artwork service or private stream URL is needed.
 
 ## Library lists and sorting
 
@@ -28,7 +34,7 @@ Get the Windows x64 installer or portable ZIP from the [latest stable release](h
 
 Black-bar detection measures the frames after video processing, including GPU-resized output. It preserves the selected decoder and existing processing filters. The confirmed framing follows video-size changes when GPU processing is toggled. Detection leaves blur under your control; use **Ctrl+B** after cropping to fill the newly exposed space.
 
-## Stremio6-Custom releases and upstream updates
+## Stremio 6 Expanded releases and upstream updates
 
 Stable fork tags use `custom-v<version>` so official Stremio tags can coexist with them. Start from this fork's `main` when creating an integration branch to bring in an official shell update. Add the upstream remote once per clone.
 
@@ -43,9 +49,9 @@ git merge upstream/main
 
 Run Windows CI and check the Library toolbar, watched filters, poster menu, and bulk selection with a signed-in library before merging the integration branch into `main`. Check blur, crop, and shader shortcuts during playback. The hosted Stremio Web interface updates separately from the shell. If its Library structure changes, check that the custom controls appear and saved lists still load.
 
-The source now includes official upstream changes through [`e148e2a`](https://github.com/Stremio/stremio-shell-ng/commit/e148e2a6801b4af3afd143262f2280a866da7c87), adding support for the `sub-bold` and `force-media-title` player properties. This source update is newer than the 5.0.30 downloadable release.
+The source includes official upstream changes through [`e148e2a`](https://github.com/Stremio/stremio-shell-ng/commit/e148e2a6801b4af3afd143262f2280a866da7c87), adding support for the `sub-bold` and `force-media-title` player properties.
 
-Windows CI and release builds also run a real hosted-Library compatibility test with dummy data in an isolated browser. It checks custom menu actions, category moves, list-only removal, bulk selection, filters and list creation without using a real account. See [the upstream update checks](docs/UPSTREAM.md) before integrating future updates. These checks cover known regressions; future hosted-interface changes can still require an adapter update.
+Windows CI and release builds run real hosted-Library and artwork compatibility tests with dummy data in an isolated browser. They check custom menus, saved lists, missing and broken artwork, alternate images and spoiler blur without using a real account. See [the upstream update checks](docs/UPSTREAM.md) before integrating future updates. These checks cover known regressions; future hosted-interface changes can still require an adapter update.
 
 ## Shell architecture
 

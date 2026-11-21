@@ -14,6 +14,9 @@ fork to upstream or using a blanket conflict strategy.
 
 Keep Library integration in `ezra_library.rs` and `ezra_assets/fork-lists.js` /
 `library_adapter.js`, and playback controls in `ezra_playback.rs` and its assets.
+Keep artwork compatibility in `ezra_assets/artwork.js`. Library and artwork
+factory wrappers preserve the original factory's `toString` contract so they can
+compose without hiding component signatures from each other.
 Review changes to the native message routing, player initialization, app profile,
 installer identity and packaging as well as direct edits to those modules.
 
@@ -25,6 +28,10 @@ installer identity and packaging as well as direct edits to those modules.
   components, list-loading recovery, saved membership and playback shortcuts.
 - Run the hosted Library check below. It checks actual current Stremio components
   using dummy Library data and an in-memory bridge in a fresh browser profile.
+- Run `node tests/hosted-artwork.cjs` with the same browser tools. It renders the
+  actual Home, poster, episode-picker, player episode-drawer and next-video
+  components with synthetic images. It checks missing URLs, HTTP failures,
+  fallback ordering, placeholders, watched-state blur and episode changes.
 - Run `python tests/black_bar_detection.py --dll libmpv-2.dll --ffmpeg bin/ffmpeg.exe`.
   This renders actual video and checks blur, FSR, crop resizing, no-bar safety,
   restoration and per-video reset. Use `--hardware` on a machine with a supported
@@ -43,6 +50,7 @@ Use Node 20+ and Microsoft Edge on Windows. From the repository root:
 npm install --prefix .ci-tools --no-save --ignore-scripts --no-audit --no-fund playwright@1.62.1
 $env:NODE_PATH = "$pwd/.ci-tools/node_modules"
 node tests/hosted-library.cjs
+node tests/hosted-artwork.cjs
 ```
 
 `STREMIO_TEST_BROWSER` can select another installed Chromium browser. The test

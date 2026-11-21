@@ -5,7 +5,7 @@
     function install(factories, lists) {
         const modules = Object.entries(factories);
         const unique = predicate => {
-            const matches = modules.filter(([, factory]) => predicate(Function.prototype.toString.call(factory)));
+            const matches = modules.filter(([, factory]) => predicate(factory.toString()));
             return matches.length === 1 ? matches[0] : null;
         };
         const library = unique(source => source.includes('["library-content"]') &&
@@ -17,12 +17,15 @@
         if (!library || !card || !board) return false;
 
         function scopedFactory(factory, wrapRequire, finish) {
-            return function (module, exports, require) {
+            const scopedFactory = function (module, exports, require) {
                 const scoped = new Proxy(require, {apply: (target, owner, args) =>
                     wrapRequire(Reflect.apply(target, owner, args))});
                 factory.call(this, module, exports, scoped);
                 finish?.(module);
             };
+            // Keep the original contract visible to the independent artwork adapter.
+            scopedFactory.toString = () => factory.toString();
+            return scopedFactory;
         }
 
         const isReact = exports => typeof exports?.createElement === 'function' && typeof exports.useEffect === 'function';

@@ -1,6 +1,7 @@
 [package]
 name = "stremio-shell-ng"
-version = "5.0.30"
+description = "Stremio 6 Expanded - Library lists, playback controls and reliable artwork"
+version = "5.0.31"
 edition = "2018"
 
 [dependencies]

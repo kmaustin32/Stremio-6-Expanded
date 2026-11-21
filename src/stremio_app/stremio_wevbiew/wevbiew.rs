@@ -133,8 +133,12 @@ impl PartialUi for WebView {
         let controller_clone = data.controller.clone();
         let endpoint = data.endpoint.clone();
         let webview_flags = "--autoplay-policy=no-user-gesture-required --disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection";
+        let profile = super::profile::user_data_folder(
+            &std::env::current_exe().expect("Cannot locate app profile"),
+        );
         let result = webview2::EnvironmentBuilder::new()
             .with_additional_browser_arguments(webview_flags)
+            .with_user_data_folder(&profile)
             .build(move |env| {
                 env.expect("Cannot obtain webview environment")
                     .create_controller(hwnd, move |controller| {
@@ -324,6 +328,7 @@ impl PartialUi for WebView {
                         webview.add_script_to_execute_on_document_created(concat!(
                             include_str!("../ezra_assets/fork-lists.js"), "\n",
                             include_str!("../ezra_assets/library_adapter.js"), "\n",
+                            include_str!("../ezra_assets/artwork.js"), "\n",
                             include_str!("../ezra_assets/playback_shortcuts.js"),
                         ), move |_| {
                             let webview = controller.get_webview()?;

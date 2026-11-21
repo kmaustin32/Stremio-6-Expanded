@@ -1,7 +1,9 @@
 use std::time::Duration;
 use url::Url;
 
-pub const APP_NAME: &str = "Stremio6-Custom";
+pub const APP_NAME: &str = "Stremio 6 Expanded";
+// Keep existing data and single-instance keys across the public product rename.
+pub const APP_DATA_NAME: &str = "Stremio6-Custom";
 pub const IPC_PATH: &str = "//./pipe/com.stremio6-custom.";
 pub const IPC_ATTEMPTS: u32 = 10;
 pub const IPC_RETRY_DELAY: Duration = Duration::from_millis(100);

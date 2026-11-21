@@ -7,7 +7,7 @@ const path = require('node:path');
 const assets = path.join(__dirname, '../src/stremio_app/ezra_assets/');
 const manifest = fs.readFileSync(path.join(__dirname, '../Cargo.toml'), 'utf8');
 const shellVersion = manifest.match(/^version\s*=\s*"([^"]+)"/m)[1];
-const injected = ['fork-lists.js','library_adapter.js','playback_shortcuts.js']
+const injected = ['fork-lists.js','library_adapter.js','artwork.js','playback_shortcuts.js']
     .map(name => fs.readFileSync(path.join(assets, name), 'utf8')).join('\n');
 
 (async () => {
@@ -18,6 +18,8 @@ const injected = ['fork-lists.js','library_adapter.js','playback_shortcuts.js']
         page.setDefaultTimeout(15000);
         const pageErrors = [];
         page.on('pageerror', error => pageErrors.push(error.message));
+        await page.route('https://library-art.test/**', route => route.fulfill(route.request().url().includes('broken')
+            ? {status:404,body:'missing'} : {contentType:'image/svg+xml',body:'<svg xmlns="http://www.w3.org/2000/svg" width="100" height="150"><rect width="100" height="150" fill="#7272c2"/></svg>'}));
         const findFixtureIds = `(window.webpackChunkstremio ||= []).push([['fixture-ids'], {}, require => {
             const candidates = Object.entries(require.m);
             window.fixtureLibraryId = candidates.find(([,f]) => f.toString().includes('["library-content"]') &&
@@ -49,8 +51,10 @@ const injected = ['fork-lists.js','library_adapter.js','playback_shortcuts.js']
             const profile = {auth:{user:{_id:'fixture',email:'local@example.invalid'}},settings:{}};
             const movies = [
                 {_id:'tt101',name:'Alpha',type:'movie',posterShape:'poster',watched:true,removed:false,temp:false,
+                    poster:'https://library-art.test/broken.svg',background:'https://library-art.test/background.svg',
                     state:{timesWatched:2},deepLinks:{metaDetailsStreams:'stremio:///detail/movie/tt101/tt101'}},
                 {_id:'kitsu:2',name:'Anime Two',type:'series',posterShape:'poster',watched:false,removed:false,temp:false,
+                    background:'https://library-art.test/background.svg',
                     state:{timesWatched:0},deepLinks:{metaDetailsVideos:'stremio:///detail/series/kitsu%3A2'}},
                 {_id:'tt103',name:'Zeta',type:'series',posterShape:'poster',watched:false,removed:false,temp:false,
                     state:{timesWatched:0},deepLinks:{metaDetailsVideos:'stremio:///detail/series/tt103'}},
@@ -91,6 +95,9 @@ const injected = ['fork-lists.js','library_adapter.js','playback_shortcuts.js']
         await page.waitForFunction(() => window.__stremioForkCustomListsPatched === true, {}, {timeout:12000});
         const toolbar = page.locator('[data-fork-library-toolbar]');
         await toolbar.waitFor({timeout:15000});
+        await page.waitForFunction(() => window.__stremioExpandedArtwork === true);
+        await page.waitForFunction(() => [...document.querySelectorAll('img')].filter(image =>
+            image.src === 'https://library-art.test/background.svg' && image.complete && image.naturalWidth > 0).length >= 2);
         assert.equal(await page.getByRole('button',{name:'Lists',exact:true}).count(),0);
         await toolbar.getByText('Anime',{exact:true}).click();
         await page.waitForURL('**/*forkList=anime*');

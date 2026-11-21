@@ -106,7 +106,7 @@ fn settings_path() -> PathBuf {
     env::var_os("APPDATA")
         .map(PathBuf::from)
         .unwrap_or_else(env::temp_dir)
-        .join(super::constants::APP_NAME)
+        .join(super::constants::APP_DATA_NAME)
         .join(WINDOW_SETTINGS_FILE)
 }
 

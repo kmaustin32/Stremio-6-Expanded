@@ -3,7 +3,7 @@ use std::{fs, io, path::PathBuf};
 const STORED_PATH_FILE: &str = "mpv-config.txt";
 
 fn settings_dir() -> Option<PathBuf> {
-    Some(dirs::config_dir()?.join(super::constants::APP_NAME))
+    Some(dirs::config_dir()?.join(super::constants::APP_DATA_NAME))
 }
 
 pub fn path() -> Option<String> {

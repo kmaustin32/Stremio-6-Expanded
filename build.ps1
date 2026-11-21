@@ -1,2 +1,12 @@
-cargo build --release --target x86_64-pc-windows-msvc
-& "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" /DSIGN "/Sstremiosign=`$qsigntool`$q sign /fd SHA256 /t http://timestamp.digicert.com /n `$qSmart Code OOD`$q `$f" "setup\Stremio.iss"
+$ErrorActionPreference = 'Stop'
+Push-Location $PSScriptRoot
+try {
+    cargo build --locked --release --target x86_64-pc-windows-msvc
+    if ($LASTEXITCODE) { throw "Build failed ($LASTEXITCODE)." }
+    $metadata = cargo metadata --no-deps --format-version 1 | ConvertFrom-Json
+    if ($LASTEXITCODE) { throw 'Could not read package version.' }
+    $package = $metadata.packages | Where-Object name -eq 'stremio-shell-ng'
+    & ./setup/package-preview.ps1 -Tag "custom-v$($package.version)"
+} finally {
+    Pop-Location
+}

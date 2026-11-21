@@ -36,6 +36,13 @@ Black-bar detection measures the frames after video processing, including GPU-re
 
 ## Stremio 6 Expanded releases and upstream updates
 
+On Windows with the Rust/MSVC build tools and Inno Setup installed, `./build.ps1`
+builds this fork's installer and portable ZIP in `preview-output`, with SHA-256
+checksums. It does not install or uninstall anything on your computer. GitHub's
+manual build workflow additionally tests clean installation, upgrades from the
+previous product name, startup and uninstall in an isolated runner account, and
+provides the tested files as a downloadable artifact without publishing a release.
+
 Stable fork tags use `custom-v<version>` so official Stremio tags can coexist with them. Start from this fork's `main` when creating an integration branch to bring in an official shell update. Add the upstream remote once per clone.
 
 ```sh

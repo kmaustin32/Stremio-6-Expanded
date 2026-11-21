@@ -1,10 +1,14 @@
 param(
     [Parameter(Mandatory)]
     [ValidatePattern('^(?:custom-v\d+\.\d+\.\d+|v\d+\.\d+\.\d+-custom\.[1-9]\d*)$')]
-    [string] $Tag
+    [string] $Tag,
+    [switch] $SmokeTest
 )
 
 $ErrorActionPreference = 'Stop'
+if ($SmokeTest -and $env:CI -ne 'true') {
+    throw 'Installer install/uninstall tests require an isolated CI account. Omit -SmokeTest to build packages locally.'
+}
 $version = $Tag -replace '^(?:custom-)?v', ''
 $prefix = "Stremio-6-Expanded-$version-x64"
 $payload = (New-Item -ItemType Directory -Path 'preview-payload').FullName
@@ -16,6 +20,7 @@ Copy-Item -Path 'bin/*' -Destination $payload
 
 $iscc = Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6/ISCC.exe'
 if (!(Test-Path -LiteralPath $iscc)) {
+    if ($env:CI -ne 'true') { throw 'Install Inno Setup 6 before building Windows packages.' }
     choco install innosetup --no-progress -y
     if ($LASTEXITCODE) { throw "Could not install Inno Setup ($LASTEXITCODE)." }
 }
@@ -24,6 +29,7 @@ if ($LASTEXITCODE) { throw "Installer compilation failed ($LASTEXITCODE)." }
 
 $zip = Join-Path $out "$prefix.zip"
 Compress-Archive -Path "$payload/*" -DestinationPath $zip
+if ($SmokeTest) {
 $portable = Join-Path $env:RUNNER_TEMP 'stremio-6-expanded-portable'
 Expand-Archive -Path $zip -DestinationPath $portable
 
@@ -118,6 +124,7 @@ Start-And-Check $legacyInstall
 Start-And-Check $legacyInstall 'Stremio6-Custom.exe'
 $uninstall = Start-Process -FilePath (Join-Path $legacyInstall 'unins000.exe') -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART' -WindowStyle Hidden -Wait -PassThru
 if ($uninstall.ExitCode) { throw 'Upgraded installation did not uninstall.' }
+}
 
 $checksums = Get-ChildItem -LiteralPath $out -File | ForEach-Object {
     "$((Get-FileHash -Algorithm SHA256 -LiteralPath $_.FullName).Hash.ToLowerInvariant())  $($_.Name)"

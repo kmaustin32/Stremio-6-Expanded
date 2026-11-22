@@ -10,6 +10,10 @@ Get the Windows x64 installer or portable ZIP from the [releases page](https://g
 
 **5.0.32** restores Ezra's episode-specific anime thumbnail fallback. The project is now **Stremio 6 Expanded**. Upgrading preserves existing lists, player settings, streaming-server data and browser profiles. The installer retains compatibility with shortcuts targeting the old executable and replaces the old Start menu entry. Internal storage keys and the original installer identity intentionally stay the same to protect existing data.
 
+## Manual next-episode prompt
+
+**5.0.33** allows the next-episode popup to appear near the end with **Auto Play off**, so you can choose **Watch now** manually. The existing popup-duration setting controls when it appears; **Disabled** still hides it. Auto Play remains off and does not start the next episode automatically. Dismissal, live TV, final episodes and the existing end-of-file navigation are preserved. The next prompt and Skip Outro do not overlap.
+
 ## Artwork that keeps working
 
 Home and Library posters, episode details, the player episode panel and the next-episode popup handle missing URLs and failed downloads. Episode previews try artwork for that episode before using the show's poster/background or a placeholder. Ezra's anime fallback translates seasonal numbering into absolute episode numbers when the artwork provider keeps all episodes under season 1: Inuyasha S3E17, for example, uses overall episode 71. Specials are excluded from that offset, and incomplete episode lists are not used to guess a number.

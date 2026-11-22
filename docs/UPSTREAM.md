@@ -23,6 +23,13 @@ installer identity and packaging as well as direct edits to those modules.
 
 ## Checks before merging or releasing
 
+- Run `node tests/hosted-next-popup.cjs` with the browser tools below. It checks
+  the actual hosted player's timing expression with Auto Play on/off, popup
+  Disabled, seeking, dismissal, live TV and final episodes. It also verifies that
+  native end/navigation callbacks remain unchanged and Skip Outro does not overlap
+  the manual prompt. Keep `next_episode.js` before the artwork adapters so their
+  factory wrappers compose. Unrecognized player contracts retain native behavior.
+
 - Run Windows formatting, clippy and Rust tests, including the player message
   contract and server lifecycle tests.
 - Run `node --test tests/ezra-core.test.cjs tests/episode-artwork.test.cjs`. This checks plain/memoized poster

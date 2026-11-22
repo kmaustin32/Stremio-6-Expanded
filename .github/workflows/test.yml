@@ -37,6 +37,10 @@ jobs:
       env:
         NODE_PATH: ${{ github.workspace }}/.ci-tools/node_modules
       run: node tests/hosted-library.cjs
+    - name: Test manual next-episode popup
+      env:
+        NODE_PATH: ${{ github.workspace }}/.ci-tools/node_modules
+      run: node tests/hosted-next-popup.cjs
     - name: Test hosted artwork fallbacks and spoiler blur
       env:
         NODE_PATH: ${{ github.workspace }}/.ci-tools/node_modules

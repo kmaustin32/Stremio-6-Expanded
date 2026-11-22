@@ -3,7 +3,7 @@ const {chromium} = require('playwright');
 const fs = require('node:fs');
 const path = require('node:path');
 const assert = require('node:assert/strict');
-const artwork = ['episode_artwork.js','artwork.js'].map(name =>
+const artwork = ['next_episode.js','episode_artwork.js','artwork.js'].map(name =>
     fs.readFileSync(path.join(__dirname, '../src/stremio_app/ezra_assets',name),'utf8')).join('\n');
 
 (async () => {
@@ -76,6 +76,7 @@ const artwork = ['episode_artwork.js','artwork.js'].map(name =>
         await page.waitForFunction(() => window.__stremioExpandedArtwork === true);
         await page.waitForFunction(() => window.artworkReady);
         await page.evaluate(() => {
+            window.manualNextClicks=0;
             const require = window.artworkRequire;
             const sources = Object.entries(window.artworkSources);
             const find = predicate => {
@@ -119,7 +120,7 @@ const artwork = ['episode_artwork.js','artwork.js'].map(name =>
                     wrap('details',el(Episodes,{metaItem:show,libraryItem:null,season:3,hideSpoilers:true,error:false,hidden:false,
                         scrollMemoryRef,openEpisode() {},onSeasonSelect() {},onToggleNotifications() {},onMarkVideoWatched() {},onMarkSeasonWatched() {},onEpisodeSearch() {}})),
                     wrap('player',el(Drawer,{metaItem:show,seriesInfo:{season:3},selected:video.id,closeSideDrawer() {}})),
-                    wrap('next',el(Next,{metaItem:show,nextVideo:video,onDismiss() {},onNextVideoRequested() {}})),
+                    wrap('next',el(Next,{metaItem:show,nextVideo:video,onDismiss() {},onNextVideoRequested() {window.manualNextClicks++;}})),
                     wrap('still',el(Still,{metaItem:show,video,thumbnail:video.thumbnail,blurred:!state.watched})));
             }
             ReactDOM.createRoot(root).render(el(Fixture));
@@ -199,6 +200,9 @@ const artwork = ['episode_artwork.js','artwork.js'].map(name =>
             return loaded.some(src=>src.endsWith('/1/55/w780.jpg'))&&loaded.some(src=>src.endsWith('/1/56/w780.jpg'))&&loaded.length===2;
         },scope);
         assert.deepEqual(errors,[]);
+        assert.equal(await page.evaluate(()=>window.manualNextClicks),0,'Showing a prompt does not select the next episode');
+        await page.locator('[data-artwork-scope="next"]').getByText('Watch now',{exact:true}).click();
+        assert.equal(await page.evaluate(()=>window.manualNextClicks),1,'The existing manual button advances once');
         const output = process.env.STREMIO_UI_TEST_OUTPUT;
         if (output) { fs.mkdirSync(output,{recursive:true}); await page.screenshot({path:path.join(output,'artwork-fallback.png')}); }
         console.log('PASS: real hosted artwork views; missing/broken URLs, episode-specific anime numbering, distinct adjacent episode images, shared metadata lookup, no-URL recovery, blur and watched state.');

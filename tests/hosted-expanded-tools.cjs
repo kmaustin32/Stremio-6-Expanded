@@ -4,7 +4,19 @@ const fs = require('node:fs');
 const path = require('node:path');
 const {deflateSync} = require('node:zlib');
 const assert = require('node:assert/strict');
-const script = fs.readFileSync(path.join(__dirname, '../src/stremio_app/ezra_assets/expanded_tools.js'), 'utf8');
+const assets = path.join(__dirname, '../src/stremio_app/ezra_assets');
+const script = (() => {
+    const executable = process.argv[2];
+    if (!executable) return fs.readFileSync(path.join(assets, 'expanded_tools.js'), 'utf8');
+    const names = ['next_episode.js', 'fork-lists.js', 'library_adapter.js', 'episode_artwork.js',
+        'artwork.js', 'playback_shortcuts.js', 'expanded_tools.js'];
+    const expected = Buffer.from(names.map(name => fs.readFileSync(path.join(assets, name), 'utf8')).join('\n'));
+    const binary = fs.readFileSync(executable);
+    const offset = binary.indexOf(expected);
+    assert.ok(offset >= 0, 'The installed executable must contain the complete WebView2 script in its original order');
+    console.log('Testing the combined UI script read from the installed executable.');
+    return binary.subarray(offset, offset + expected.length).toString('utf8');
+})();
 const manifest = fs.readFileSync(path.join(__dirname, '../Cargo.toml'), 'utf8');
 const version = manifest.match(/^version\s*=\s*"([^"]+)"/m)[1];
 const versionLabel = version.replace(/-custom\.(\d+)$/, ' Beta $1');

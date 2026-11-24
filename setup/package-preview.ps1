@@ -42,27 +42,10 @@ function Compare-Payload([string] $Directory) {
     }
 }
 
-function Start-And-Check([string] $Directory, [string] $Executable = 'Stremio 6 Expanded.exe', [switch] $CheckControls) {
-    $previousBrowserArguments = $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS
-    $profile = if ($CheckControls) { 'stremio-expanded-controls-profile' } else { 'stremio-6-expanded-test-profile' }
-    $env:WEBVIEW2_USER_DATA_FOLDER = Join-Path $env:RUNNER_TEMP $profile
-    $appArguments = @('--no-splash', '--start-hidden')
-    $output = @{}
-    $app = $null
+function Start-And-Check([string] $Directory, [string] $Executable = 'Stremio 6 Expanded.exe') {
+    $env:WEBVIEW2_USER_DATA_FOLDER = Join-Path $env:RUNNER_TEMP 'stremio-6-expanded-test-profile'
+    $app = Start-Process -FilePath (Join-Path $Directory $Executable) -ArgumentList '--no-splash', '--start-hidden' -WorkingDirectory $Directory -WindowStyle Hidden -PassThru
     try {
-        if ($CheckControls) {
-            $portProbe = [Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback, 0)
-            $portProbe.Start()
-            $debugPort = $portProbe.LocalEndpoint.Port
-            $portProbe.Stop()
-            $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = "--remote-debugging-address=127.0.0.1 --remote-debugging-port=$debugPort --disable-backgrounding-occluded-windows --disable-renderer-backgrounding"
-            $appArguments = @('--no-splash')
-            $output = @{
-                RedirectStandardOutput = Join-Path $env:RUNNER_TEMP 'expanded-app.log'
-                RedirectStandardError = Join-Path $env:RUNNER_TEMP 'expanded-app-errors.log'
-            }
-        }
-        $app = Start-Process -FilePath (Join-Path $Directory $Executable) -ArgumentList $appArguments -WorkingDirectory $Directory -WindowStyle Hidden -PassThru @output
         $deadline = (Get-Date).AddSeconds(45)
         do {
             $app.Refresh()
@@ -70,40 +53,13 @@ function Start-And-Check([string] $Directory, [string] $Executable = 'Stremio 6 
             $child = Get-CimInstance Win32_Process -Filter "ParentProcessId = $($app.Id) AND Name = 'stremio-runtime.exe'"
             if ($child) {
                 $listeners = Get-NetTCPConnection -OwningProcess $child.ProcessId -State Listen -ErrorAction SilentlyContinue
-                if ($listeners) {
-                    if ($CheckControls) {
-                        node tests/packaged-expanded-tools.cjs $debugPort $Directory $version
-                        if ($LASTEXITCODE) { throw 'Packaged Settings and Playback Tools failed.' }
-                    }
-                    return
-                }
+                if ($listeners) { return }
             }
             Start-Sleep -Milliseconds 500
         } while ((Get-Date) -lt $deadline)
         throw 'The packaged streaming server did not start listening.'
-    } catch {
-        if ($CheckControls) {
-            $client = '{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}'
-            $versions = foreach ($key in @(
-                "HKLM:\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\$client",
-                "HKLM:\SOFTWARE\Microsoft\EdgeUpdate\Clients\$client",
-                "HKCU:\SOFTWARE\Microsoft\EdgeUpdate\Clients\$client"
-            )) { Get-ItemPropertyValue -LiteralPath $key -Name pv -ErrorAction SilentlyContinue }
-            Write-Host "Registered WebView2 versions: $($versions -join ', ')"
-            $webviews = @(Get-CimInstance Win32_Process -Filter "Name = 'msedgewebview2.exe'" |
-                Where-Object CommandLine -Like "*$profile*")
-            Write-Host "Browser processes using the test profile: $($webviews.Count)"
-            foreach ($file in $output.Values) {
-                if (Test-Path -LiteralPath $file) {
-                    Write-Host "Recent $([IO.Path]::GetFileName($file))"
-                    Get-Content -LiteralPath $file -Tail 15 | ForEach-Object { Write-Host $_ }
-                }
-            }
-        }
-        throw
     } finally {
-        if ($app -and !$app.HasExited) { Stop-Process -Id $app.Id; $app.WaitForExit() }
-        $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = $previousBrowserArguments
+        if (!$app.HasExited) { Stop-Process -Id $app.Id; $app.WaitForExit() }
         Remove-Item Env:WEBVIEW2_USER_DATA_FOLDER
     }
 }
@@ -121,7 +77,9 @@ if ($process.ExitCode) { throw "Installer smoke test failed ($($process.ExitCode
 Compare-Payload $install
 $shortcut = Join-Path ([Environment]::GetFolderPath('Programs')) 'Stremio 6 Expanded.lnk'
 if (!(Test-Path -LiteralPath $shortcut)) { throw 'The renamed Start menu shortcut is missing.' }
-Start-And-Check $install -CheckControls
+Start-And-Check $install
+node tests/hosted-expanded-tools.cjs (Join-Path $install 'Stremio 6 Expanded.exe')
+if ($LASTEXITCODE) { throw 'The packaged interface did not pass its navigation test.' }
 $uninstall = Start-Process -FilePath (Join-Path $install 'unins000.exe') -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART' -WindowStyle Hidden -Wait -PassThru
 if ($uninstall.ExitCode -or (Test-Path -LiteralPath (Join-Path $install 'Stremio 6 Expanded.exe'))) {
     throw 'Installer uninstall smoke test failed.'

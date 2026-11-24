@@ -42,10 +42,22 @@ function Compare-Payload([string] $Directory) {
     }
 }
 
-function Start-And-Check([string] $Directory, [string] $Executable = 'Stremio 6 Expanded.exe') {
-    $env:WEBVIEW2_USER_DATA_FOLDER = Join-Path $env:RUNNER_TEMP 'stremio-6-expanded-test-profile'
-    $app = Start-Process -FilePath (Join-Path $Directory $Executable) -ArgumentList '--no-splash', '--start-hidden' -WorkingDirectory $Directory -WindowStyle Hidden -PassThru
+function Start-And-Check([string] $Directory, [string] $Executable = 'Stremio 6 Expanded.exe', [switch] $CheckControls) {
+    $previousBrowserArguments = $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS
+    $profile = if ($CheckControls) { 'stremio-expanded-controls-profile' } else { 'stremio-6-expanded-test-profile' }
+    $env:WEBVIEW2_USER_DATA_FOLDER = Join-Path $env:RUNNER_TEMP $profile
+    $appArguments = @('--no-splash', '--start-hidden')
+    $app = $null
     try {
+        if ($CheckControls) {
+            $portProbe = [Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback, 0)
+            $portProbe.Start()
+            $debugPort = $portProbe.LocalEndpoint.Port
+            $portProbe.Stop()
+            $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = "--remote-debugging-address=127.0.0.1 --remote-debugging-port=$debugPort --disable-backgrounding-occluded-windows --disable-renderer-backgrounding"
+            $appArguments = @('--no-splash')
+        }
+        $app = Start-Process -FilePath (Join-Path $Directory $Executable) -ArgumentList $appArguments -WorkingDirectory $Directory -WindowStyle Hidden -PassThru
         $deadline = (Get-Date).AddSeconds(45)
         do {
             $app.Refresh()
@@ -53,13 +65,20 @@ function Start-And-Check([string] $Directory, [string] $Executable = 'Stremio 6 
             $child = Get-CimInstance Win32_Process -Filter "ParentProcessId = $($app.Id) AND Name = 'stremio-runtime.exe'"
             if ($child) {
                 $listeners = Get-NetTCPConnection -OwningProcess $child.ProcessId -State Listen -ErrorAction SilentlyContinue
-                if ($listeners) { return }
+                if ($listeners) {
+                    if ($CheckControls) {
+                        node tests/packaged-expanded-tools.cjs $debugPort $Directory $version
+                        if ($LASTEXITCODE) { throw 'Packaged Settings and Playback Tools failed.' }
+                    }
+                    return
+                }
             }
             Start-Sleep -Milliseconds 500
         } while ((Get-Date) -lt $deadline)
         throw 'The packaged streaming server did not start listening.'
     } finally {
-        if (!$app.HasExited) { Stop-Process -Id $app.Id; $app.WaitForExit() }
+        if ($app -and !$app.HasExited) { Stop-Process -Id $app.Id; $app.WaitForExit() }
+        $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = $previousBrowserArguments
         Remove-Item Env:WEBVIEW2_USER_DATA_FOLDER
     }
 }
@@ -68,7 +87,7 @@ Compare-Payload $portable
 if ((Get-Item (Join-Path $portable 'Stremio 6 Expanded.exe')).VersionInfo.ProductName -ne 'Stremio 6 Expanded') {
     throw 'The executable product name did not change.'
 }
-Start-And-Check $portable
+Start-And-Check $portable -CheckControls
 
 $install = Join-Path $env:LOCALAPPDATA 'Programs/Stremio 6 Expanded'
 $installer = Join-Path $out "$prefix-Setup.exe"

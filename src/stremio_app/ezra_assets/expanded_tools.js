@@ -9,6 +9,7 @@
     const presetNames = ['Off', 'Anime4K Mode A (HQ)', 'Anime4K Mode B (HQ)', 'Anime4K Mode C (HQ)',
         'Anime4K Mode A+A (HQ)', 'Anime4K Mode B+B (HQ)', 'Anime4K Mode C+A (HQ)', 'FSR'];
     const pending = new Map();
+    const navigation = window.navigation && 'oncurrententrychange' in window.navigation ? window.navigation : null;
     let updatePanel, playbackButton, playbackDialog, observer, mountQueued;
 
     function element(tag, label) {
@@ -270,9 +271,14 @@
         }
     };
     function routeChanged() {
-        observer ??= new MutationObserver(queueMount);
+        observer ??= new MutationObserver(() => {
+            if (activeSettings() || activePlayer() || updatePanel?.isConnected ||
+                playbackButton?.isConnected || playbackDialog?.open) queueMount();
+        });
         observer.disconnect();
-        if (activeSettings() || activePlayer()) observer.observe(document.body, {childList: true, subtree: true});
+        // Older WebViews can detect in-app route changes from the rendered content.
+        if (!navigation || activeSettings() || activePlayer())
+            observer.observe(document.body, {childList: true, subtree: true});
         queueMount();
     }
 
@@ -310,6 +316,8 @@
         `;
         document.head.append(style);
         window.addEventListener('hashchange', routeChanged);
+        // Stremio's own links update browser history without dispatching hashchange.
+        navigation?.addEventListener('currententrychange', routeChanged);
         routeChanged();
     }
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, {once: true});

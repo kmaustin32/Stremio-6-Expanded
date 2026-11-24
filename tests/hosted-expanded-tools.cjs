@@ -16,6 +16,17 @@ function hitTest(element) {
     return element.contains(document.elementFromPoint(x+width/2,y+height/2));
 }
 
+async function waitInView(locator, message) {
+    const element = await locator.elementHandle();
+    try {
+        await locator.page().waitForFunction(hitTest, element, {timeout:5000});
+    } catch (error) {
+        throw new Error(message, {cause:error});
+    } finally {
+        await element.dispose();
+    }
+}
+
 (async () => {
     const browser = await chromium.launch({headless:true, executablePath:[process.env.STREMIO_TEST_BROWSER,
         'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',
@@ -73,15 +84,21 @@ function hitTest(element) {
             Object.defineProperty(navigator,'clipboard',{value:{writeText:async value => {window.copiedReport=value;}}});
         ` + '\n' + script});
 
-        await page.goto(origin + '/#/settings');
+        // Reproduce clicking Settings from Home. A direct URL fires a different navigation event.
+        await page.goto(origin + '/');
+        await page.locator('a[href*="/settings"]').first().click();
+        await page.waitForURL(url => url.hash === '#/settings');
         const updates = page.getByRole('region',{name:'Expanded updates'});
         const versionHeading = updates.getByText('Stremio 6 Expanded ' + versionLabel);
-        await versionHeading.waitFor();
+        await versionHeading.waitFor({timeout:8000});
         const checkForUpdates = updates.getByRole('button',{name:'Check for updates'});
-        assert.ok(await checkForUpdates.evaluate(hitTest), 'The update button must be on screen when Settings first opens');
+        await waitInView(checkForUpdates, 'The update button must be on screen when Settings first opens');
+        await page.getByText('Help and about',{exact:true}).first().click();
+        await page.getByText('About Stremio',{exact:true}).waitFor();
+        await waitInView(checkForUpdates, 'The update button must be visible on Help and about');
         await page.goto(origin + '/#/settings/interface');
         await versionHeading.waitFor();
-        assert.ok(await checkForUpdates.evaluate(hitTest), 'The update button must stay in view on the Interface page');
+        await waitInView(checkForUpdates, 'The update button must stay in view on the Interface page');
         const channel = updates.getByLabel('Update channel');
         assert.equal(await channel.inputValue(), 'beta', 'New beta installations start on the Beta channel');
         await channel.selectOption('stable');
@@ -101,8 +118,14 @@ function hitTest(element) {
 
         const stream = deflateSync(JSON.stringify({url:'https://expanded-fixture.test/not-a-real-stream.mp4'}))
             .toString('base64');
-        await page.goto(origin + '/#/player/' + encodeURIComponent(stream));
+        await page.goto(origin + '/#/');
         await updates.waitFor({state:'detached'});
+        // Emulate an in-app player transition. pushState does not fire hashchange.
+        await page.evaluate(stream => {
+            const state = {...history.state, idx: (history.state?.idx ?? 0) + 1};
+            history.pushState(state, '', '#/player/' + encodeURIComponent(stream));
+            dispatchEvent(new PopStateEvent('popstate', {state}));
+        }, stream);
         await page.setViewportSize({width:800,height:550});
         await page.mouse.move(530,450);
         const toolsButton = page.getByRole('button',{name:'Playback Tools'});
@@ -111,7 +134,7 @@ function hitTest(element) {
         assert.ok((await toolsButton.boundingBox()).y < (await seek.boundingBox()).y);
         const nativeButtons = page.locator('[class*="control-bar-buttons-container-"]').first();
         await nativeButtons.evaluate(node => { node.style.maxWidth = '20px'; });
-        assert.ok(await toolsButton.evaluate(hitTest), 'The player button must remain usable when the native row clips');
+        await waitInView(toolsButton, 'The player button must remain usable when the native row clips');
         await toolsButton.click();
         const tools = page.getByRole('dialog',{name:'Playback Tools'});
         await tools.getByRole('button',{name:'Ambient Blur: Off'}).click();
@@ -133,8 +156,13 @@ function hitTest(element) {
         assert.deepEqual(await page.evaluate(() => window.playerCalls), ['blur','detect','shader-7','detect','clear']);
         await tools.getByRole('button',{name:'Done'}).click();
         await tools.waitFor({state:'detached'});
+        await page.goBack();
+        await toolsButton.waitFor({state:'detached'});
+        await page.goForward();
+        await page.mouse.move(530,450);
+        await toolsButton.waitFor();
         assert.deepEqual(errors, []);
-        console.log('PASS: hosted Settings upgrade flow and native controls placement, playback commands, status and report redaction');
+        console.log('PASS: in-app Settings and Player navigation, update check, playback tools, and redacted report');
     } finally {
         await browser.close();
     }

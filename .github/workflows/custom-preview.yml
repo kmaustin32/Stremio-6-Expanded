@@ -66,6 +66,8 @@ jobs:
       - name: Compile x64 release
         run: cargo build --locked --release --target x86_64-pc-windows-msvc
       - name: Package and smoke-test installer and portable app
+        env:
+          NODE_PATH: ${{ github.workspace }}/.ci-tools/node_modules
         run: ./setup/package-preview.ps1 -Tag $env:PACKAGE_TAG -SmokeTest
       - name: Upload tested Windows packages
         uses: actions/upload-artifact@v4

@@ -5,19 +5,28 @@ const path = require('node:path');
 const {deflateSync} = require('node:zlib');
 const assert = require('node:assert/strict');
 const script = fs.readFileSync(path.join(__dirname, '../src/stremio_app/ezra_assets/expanded_tools.js'), 'utf8');
+const manifest = fs.readFileSync(path.join(__dirname, '../Cargo.toml'), 'utf8');
+const version = manifest.match(/^version\s*=\s*"([^"]+)"/m)[1];
+const versionLabel = version.replace(/-custom\.(\d+)$/, ' Beta $1');
 const origin = 'https://web.stremio.com';
+
+// Unlike Playwright clicks, this check does not scroll the element into view.
+function hitTest(element) {
+    const {x,y,width,height} = element.getBoundingClientRect();
+    return element.contains(document.elementFromPoint(x+width/2,y+height/2));
+}
 
 (async () => {
     const browser = await chromium.launch({headless:true, executablePath:[process.env.STREMIO_TEST_BROWSER,
         'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',
         'C:/Program Files/Microsoft/Edge/Application/msedge.exe'].find(file => file && fs.existsSync(file))});
     try {
-        const page = await browser.newPage({viewport:{width:1280,height:800}});
+        const page = await browser.newPage({viewport:{width:1280,height:720}});
         page.setDefaultTimeout(15000);
         const errors = [];
         page.on('pageerror', error => errors.push(error.message));
         await page.route('https://expanded-fixture.test/**', route => route.fulfill({status:404,body:'synthetic fixture'}));
-        await page.addInitScript({content:String.raw`
+        await page.addInitScript({content:'window.fixtureExpandedVersion = ' + JSON.stringify(version) + ';\n' + String.raw`
             window.chrome ||= {};
             const bridge = window.chrome.webview = new EventTarget();
             window.qt = {webChannelTransport: {send: raw => bridge.postMessage(raw)}};
@@ -34,14 +43,14 @@ const origin = 'https://web.stremio.com';
                 if (request.id === 0) {
                     queueMicrotask(() => window.qt.webChannelTransport.onmessage?.({data:JSON.stringify(
                         {id:0,type:3,object:'transport',data:{transport:{
-                            properties:[[],['','shellVersion','','5.0.34-custom.1']],signals:[],methods:[['onEvent','']]
+                            properties:[[],['','shellVersion','',window.fixtureExpandedVersion]],signals:[],methods:[['onEvent','']]
                         }}}
                     )}));
                 }
                 const [method, arg] = request.args ?? [];
                 if (method === 'expanded-updates') {
                     window.updateCalls.push(arg);
-                    const value = arg.action === 'info' ? {version:'5.0.34-custom.1',portable:false} :
+                    const value = arg.action === 'info' ? {version:window.fixtureExpandedVersion,portable:false} :
                         arg.action === 'check' ? {available:arg.channel === 'beta' ? '5.0.35-custom.2' : null} :
                         arg.action === 'download' ? {downloaded:true} : {opened:true};
                     queueMicrotask(() => send(method,{requestId:arg.requestId,...value}));
@@ -54,7 +63,7 @@ const origin = 'https://web.stremio.com';
                     if (arg === 'clear') shader = 0;
                     if (arg === 'status') queueMicrotask(() => send('expanded-playback-status',{
                         ready:true,blur,shader,crop,cropMessage:crop === 'locked' ? 'Black bars cropped.' : '',
-                        report:{version:'5.0.34-custom.1',resolution:'1920 x 1080',codec:'h264',hardwareDecoder:'d3d11va',
+                        report:{version:window.fixtureExpandedVersion,resolution:'1920 x 1080',codec:'h264',hardwareDecoder:'d3d11va',
                             output:'gpu-next',fps:24,renderDropped:2,decoderDropped:0,buffering:true,bufferPercent:33,
                             bufferSeconds:2.4,videoFilters:false,upscaling:shader ? 'FSR' : 'Off',borderBlur:blur,
                             blackBarCrop:crop === 'locked',streamUrl:'https://example.invalid/private-token'}
@@ -64,19 +73,25 @@ const origin = 'https://web.stremio.com';
             Object.defineProperty(navigator,'clipboard',{value:{writeText:async value => {window.copiedReport=value;}}});
         ` + '\n' + script});
 
-        await page.goto(origin + '/#/settings/interface');
+        await page.goto(origin + '/#/settings');
         const updates = page.getByRole('region',{name:'Expanded updates'});
-        await updates.getByText('Stremio 6 Expanded 5.0.34 Beta 1').waitFor();
+        const versionHeading = updates.getByText('Stremio 6 Expanded ' + versionLabel);
+        await versionHeading.waitFor();
+        const checkForUpdates = updates.getByRole('button',{name:'Check for updates'});
+        assert.ok(await checkForUpdates.evaluate(hitTest), 'The update button must be on screen when Settings first opens');
+        await page.goto(origin + '/#/settings/interface');
+        await versionHeading.waitFor();
+        assert.ok(await checkForUpdates.evaluate(hitTest), 'The update button must stay in view on the Interface page');
         const channel = updates.getByLabel('Update channel');
         assert.equal(await channel.inputValue(), 'beta', 'New beta installations start on the Beta channel');
         await channel.selectOption('stable');
-        await updates.getByRole('button',{name:'Check for updates'}).click();
+        await checkForUpdates.click();
         await updates.getByText('You are up to date on this channel.').waitFor();
         await page.reload();
-        await updates.getByText('Stremio 6 Expanded 5.0.34 Beta 1').waitFor();
+        await versionHeading.waitFor();
         assert.equal(await channel.inputValue(), 'stable');
         await channel.selectOption('beta');
-        await updates.getByRole('button',{name:'Check for updates'}).click();
+        await checkForUpdates.click();
         await updates.getByText('Available: 5.0.35 Beta 2').waitFor();
         await updates.getByRole('button',{name:'Download update'}).click();
         await updates.getByText('Download verified.',{exact:false}).waitFor();
@@ -88,8 +103,16 @@ const origin = 'https://web.stremio.com';
             .toString('base64');
         await page.goto(origin + '/#/player/' + encodeURIComponent(stream));
         await updates.waitFor({state:'detached'});
-        await page.mouse.move(750, 650);
-        await page.getByRole('button',{name:'Playback Tools'}).click();
+        await page.setViewportSize({width:800,height:550});
+        await page.mouse.move(530,450);
+        const toolsButton = page.getByRole('button',{name:'Playback Tools'});
+        await toolsButton.waitFor();
+        const seek = page.locator('[class*="control-bar-container-"] [class*="seek-bar-"]').first();
+        assert.ok((await toolsButton.boundingBox()).y < (await seek.boundingBox()).y);
+        const nativeButtons = page.locator('[class*="control-bar-buttons-container-"]').first();
+        await nativeButtons.evaluate(node => { node.style.maxWidth = '20px'; });
+        assert.ok(await toolsButton.evaluate(hitTest), 'The player button must remain usable when the native row clips');
+        await toolsButton.click();
         const tools = page.getByRole('dialog',{name:'Playback Tools'});
         await tools.getByRole('button',{name:'Ambient Blur: Off'}).click();
         await tools.getByRole('button',{name:'Ambient Blur: On'}).waitFor();

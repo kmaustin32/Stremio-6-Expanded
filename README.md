@@ -12,7 +12,7 @@ Get the Windows x64 installer or portable ZIP from the [releases page](https://g
 
 ### Check for updates
 
-Open **Settings** to see the installed Expanded version, choose **Stable** or **Beta**, and select **Check for updates**. Beta includes both preview builds and newer stable releases. New beta installs default to Beta, and the app remembers your channel choice. Expanded checks this fork's GitHub releases and verifies the downloaded package against GitHub's SHA-256 digest. On an installed copy, select **Close app and open installer** after verification. Portable copies download a ZIP and let you open its folder.
+At the top of **Settings**, the **Stremio 6 Expanded** card shows the installed version. Choose **Stable** or **Beta**, then select **Check for updates**. Beta includes both preview builds and newer stable releases. New beta installs default to Beta, and the app remembers your channel choice. Expanded checks this fork's GitHub releases and verifies the downloaded package against GitHub's SHA-256 digest. On an installed copy, select **Close app and open installer** after verification. Portable copies download a ZIP and let you open its folder.
 
 ## Manual next-episode prompt
 
@@ -35,7 +35,7 @@ If a view lacks the full episode catalog needed for the conversion, an image fai
 
 ## Playback Tools
 
-Select **Tools** in the bottom player controls for ambient blur, detecting or restoring black-bar crops, and choosing an Anime4K or FSR preset. The menu shows the active settings. **Copy playback report** copies a snapshot of the decoder, dropped frames, buffer status, and enabled processing. It excludes stream URLs, filenames, titles, and account details.
+During playback, move the mouse to show the player controls. Select **Playback Tools** just above the left end of the seek bar for ambient blur, detecting or restoring black-bar crops, and choosing an Anime4K or FSR preset. The menu shows the active settings. **Copy playback report** copies a snapshot of the decoder, dropped frames, buffer status, and enabled processing. It excludes stream URLs, filenames, titles, and account details.
 
 ## Playback shortcuts
 

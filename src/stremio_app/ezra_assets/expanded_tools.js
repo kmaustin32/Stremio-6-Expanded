@@ -241,20 +241,19 @@
         mountQueued = false;
         if (activeSettings()) {
             const pane = document.querySelector('[class*="settings-content-"] [class*="page-container-"]');
-            if (pane && !updatePanel?.isConnected) {
+            if (pane && (!updatePanel || pane.firstElementChild !== updatePanel)) {
                 updatePanel ??= createUpdates();
-                pane.append(updatePanel);
+                pane.prepend(updatePanel);
             }
         } else updatePanel?.remove();
         if (activePlayer()) {
-            const bars = document.querySelectorAll('[class*="player-container-"] [class*="control-bar-buttons-container-"]');
-            const bar = bars[bars.length - 1];
-            if (bar && !playbackButton?.isConnected) {
+            // Attach to the controls layer, not the clipped row that holds the native buttons.
+            const bar = document.querySelector('[class*="player-container-"] [class*="control-bar-container-"]');
+            if (bar && playbackButton?.parentElement !== bar) {
                 if (!playbackButton) {
-                    playbackButton = button('Tools', showPlayback);
+                    playbackButton = button('Playback Tools', showPlayback);
                     playbackButton.className = 'expanded-tools expanded-playback-button';
-                    playbackButton.setAttribute('aria-label', 'Playback Tools');
-                    playbackButton.title = 'Playback Tools';
+                    playbackButton.setAttribute('aria-haspopup', 'dialog');
                 }
                 bar.append(playbackButton);
             }
@@ -296,7 +295,10 @@
             .expanded-tools button:hover:not(:disabled), button.expanded-playback-button:hover {
                 background: var(--primary-accent-color, #7272c2); color: white; }
             .expanded-tools button:disabled, .expanded-tools select:disabled { opacity: .55; cursor: default; }
-            button.expanded-playback-button { align-self: center; margin-inline: .3rem; white-space: nowrap; }
+            button.expanded-playback-button {
+                position: absolute; inset-inline-start: clamp(.75rem, 2.2vw, 2rem);
+                inset-block-end: calc(100% + .4rem); white-space: nowrap;
+            }
             .expanded-playback-dialog { background: var(--secondary-background-color, #22232c);
                 border: 1px solid var(--primary-accent-color, #8585ce); border-radius: .8rem;
                 width: min(28rem, calc(100vw - 2rem)); padding: 1.15rem; margin: auto;

@@ -228,7 +228,8 @@ impl PartialUi for WebView {
                                 && serde_json::from_str::<ipc::RPCRequest>(&msg).ok().as_ref()
                                     .and_then(ipc::RPCRequest::get_method)
                                     .is_some_and(|method| matches!(method,
-                                        crate::stremio_app::ezra_library::COMMAND | crate::stremio_app::ezra_playback::COMMAND))
+                                        crate::stremio_app::ezra_library::COMMAND | crate::stremio_app::ezra_playback::COMMAND |
+                                        crate::stremio_app::expanded_updates::COMMAND))
                             {
                                 return Ok(());
                             }
@@ -331,7 +332,8 @@ impl PartialUi for WebView {
                             include_str!("../ezra_assets/library_adapter.js"), "\n",
                             include_str!("../ezra_assets/episode_artwork.js"), "\n",
                             include_str!("../ezra_assets/artwork.js"), "\n",
-                            include_str!("../ezra_assets/playback_shortcuts.js"),
+                            include_str!("../ezra_assets/playback_shortcuts.js"), "\n",
+                            include_str!("../ezra_assets/expanded_tools.js"),
                         ), move |_| {
                             let webview = controller.get_webview()?;
                             controller_clone.set(controller).expect("Cannot update the controller");

@@ -1671,7 +1671,7 @@ dependencies = [
 
 [[package]]
 name = "stremio-shell-ng"
-version = "5.0.33"
+version = "5.0.34-custom.1"
 dependencies = [
  "anyhow",
  "base64",

@@ -874,6 +874,18 @@ fn create_message_thread(
             if let Ok((crate::stremio_app::ezra_playback::COMMAND, action)) =
                 serde_json::from_str::<(&str, &str)>(&msg)
             {
+                if action == "status" {
+                    let status = ezra_playback
+                        .as_ref()
+                        .map(|playback| playback.status(&mpv))
+                        .unwrap_or_else(
+                            |_| serde_json::json!({"error": "Playback tools are unavailable."}),
+                        );
+                    let _ = rpc_response_sender.send(RPCResponse::response_message(Some(
+                        serde_json::json!(["expanded-playback-status", status]),
+                    )));
+                    continue;
+                }
                 if let Err(error) = ezra_playback
                     .as_ref()
                     .map_err(|error| error.to_string())

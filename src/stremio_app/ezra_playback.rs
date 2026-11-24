@@ -1,6 +1,7 @@
 use anyhow::{anyhow, Context, Result};
 use libmpv2::Mpv;
 use serde::Deserialize;
+use serde_json::{json, Value};
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -75,6 +76,93 @@ impl Playback {
             directory,
             presets: serde_json::from_str(PRESETS)?,
         })
+    }
+
+    fn shader(&self, mpv: &Mpv) -> (i64, &str) {
+        let raw = mpv
+            .get_property::<String>("glsl-shaders")
+            .unwrap_or_default();
+        if raw.is_empty() {
+            return (0, "Off");
+        }
+        let names = raw
+            .split(';')
+            .map(|path| Path::new(path).file_name().and_then(|name| name.to_str()));
+        for (index, preset) in self.presets.iter().enumerate() {
+            if names
+                .clone()
+                .eq(preset.files.iter().map(|name| Some(name.as_str())))
+            {
+                return (index as i64 + 1, &preset.label);
+            }
+        }
+        (-1, "Custom shaders")
+    }
+
+    pub fn status(&self, mpv: &Mpv) -> Value {
+        let detector = mpv
+            .get_property::<String>("user-data/stremio-bar-detection")
+            .ok()
+            .and_then(|raw| serde_json::from_str::<Value>(&raw).ok())
+            .unwrap_or_default();
+        let (shader, shader_name) = self.shader(mpv);
+        let blur = mpv
+            .get_property::<String>("border-background")
+            .is_ok_and(|mode| mode == "blur");
+        let width = mpv
+            .get_property::<i64>("video-params/w")
+            .unwrap_or_default();
+        let height = mpv
+            .get_property::<i64>("video-params/h")
+            .unwrap_or_default();
+        let ready = width > 0 && height > 0;
+        let label = |prop| {
+            mpv.get_property::<String>(prop).ok().filter(|text| {
+                text.len() <= 48
+                    && text
+                        .bytes()
+                        .all(|byte| byte.is_ascii_alphanumeric() || b"-_.".contains(&byte))
+            })
+        };
+        let crop = detector["state"].as_str().unwrap_or("idle");
+        let crop_active = detector["crop"].as_str().is_some_and(|value| {
+            !value.is_empty()
+                && mpv.get_property::<String>("video-crop").ok().as_deref() == Some(value)
+        });
+        let crop = if crop == "locked" && !crop_active {
+            "idle"
+        } else {
+            crop
+        };
+        let filter = mpv
+            .get_property::<String>("vf")
+            .ok()
+            .filter(|value| !value.is_empty());
+        let report = ready.then(|| {
+            json!({
+                "version": env!("CARGO_PKG_VERSION"),
+                "resolution": format!("{width} x {height}"),
+                "codec": label("video-format"),
+                "hardwareDecoder": label("hwdec-current").filter(|value| value != "no"),
+                "output": label("current-vo"),
+                "fps": mpv.get_property::<f64>("container-fps").ok(),
+                "renderDropped": mpv.get_property::<i64>("frame-drop-count").ok(),
+                "decoderDropped": mpv.get_property::<i64>("decoder-frame-drop-count").ok(),
+                "buffering": mpv.get_property::<bool>("paused-for-cache").ok(),
+                "bufferPercent": mpv.get_property::<i64>("cache-buffering-state").ok(),
+                "bufferSeconds": mpv.get_property::<f64>("demuxer-cache-duration").ok(),
+                "videoFilters": filter.is_some(),
+            "gpuScaling": filter.as_deref().is_some_and(|value| value.contains("d3d11vpp") &&
+                value.contains("scaling-mode=nvidia")),
+            "gpuHdr": filter.as_deref().is_some_and(|value| value.contains("d3d11vpp") &&
+                value.contains("nvidia-true-hdr")),
+                "upscaling": shader_name,
+                "borderBlur": blur,
+                "blackBarCrop": crop_active,
+            })
+        });
+        json!({"ready": ready, "blur": blur, "shader": shader, "crop": crop,
+            "cropMessage": detector["message"], "report": report})
     }
 
     pub fn handle(&self, mpv: &Mpv, action: &str) -> Result<()> {

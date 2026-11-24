@@ -1,6 +1,7 @@
 pub mod app;
 pub use app::MainWindow;
 pub mod discord;
+mod expanded_updates;
 pub mod external_player;
 mod ezra_library;
 mod ezra_playback;

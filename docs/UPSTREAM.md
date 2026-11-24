@@ -68,6 +68,11 @@ does not use a real account, user profile, private stream, or streaming provider
 Its Library saves stay in memory. It requires access to the public Stremio WebUI;
 distinguish a service outage from an interface-contract change when it fails.
 
+The **Hosted Stremio compatibility** workflow runs those hosted checks and the
+manual next-episode test daily on the default branch. The beta's hosted Tools
+test also opens the real Settings and Player routes and checks the updates
+panel, playback controls and redacted report using a simulated native bridge.
+
 The web interface is hosted separately and can change after a desktop release.
 Tests reduce regression risk; they cannot guarantee every future remote change
 will be compatible. The runtime compatibility notice should remain available when

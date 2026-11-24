@@ -29,10 +29,11 @@ jobs:
           $metadata = cargo metadata --no-deps --format-version 1 | ConvertFrom-Json
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           $package = $metadata.packages | Where-Object name -eq 'stremio-shell-ng'
-          $tag = if ($env:GITHUB_REF_TYPE -eq 'tag') { $env:GITHUB_REF_NAME } else { "custom-v$($package.version)" }
+          $tag = if ($env:GITHUB_REF_TYPE -eq 'tag') { $env:GITHUB_REF_NAME }
+                 elseif ($package.version -match '-custom\.\d+$') { "v$($package.version)" }
+                 else { "custom-v$($package.version)" }
           $version = $tag -replace '^(?:custom-)?v', ''
-          $base = $version.Split('-')[0]
-          if ($package.version -ne $base) { throw "Tag $env:GITHUB_REF_NAME does not match Cargo version $($package.version)." }
+          if ($package.version -ne $version) { throw "Tag $env:GITHUB_REF_NAME does not match Cargo version $($package.version)." }
           "PACKAGE_TAG=$tag" >> $env:GITHUB_ENV
           cargo fmt --all -- --check
       - name: Lint and test Windows
@@ -58,6 +59,10 @@ jobs:
         env:
           NODE_PATH: ${{ github.workspace }}/.ci-tools/node_modules
         run: node tests/hosted-artwork.cjs
+      - name: Test Settings updater and Playback Tools
+        env:
+          NODE_PATH: ${{ github.workspace }}/.ci-tools/node_modules
+        run: node tests/hosted-expanded-tools.cjs
       - name: Compile x64 release
         run: cargo build --locked --release --target x86_64-pc-windows-msvc
       - name: Package and smoke-test installer and portable app
@@ -79,17 +84,15 @@ jobs:
           $title = "Stremio 6 Expanded $base"
           $flags = @('--latest')
           if ($version -match '-custom\.(\d+)$') {
-            $title += " Preview $($Matches[1])"
+            $title += " Beta $($Matches[1])"
             $flags = @('--prerelease', '--latest=false')
           }
           $notes = Join-Path $env:RUNNER_TEMP 'release-notes.md'
           @"
-          Windows x64 build of the original Stremio shell with Ezra's Library and player controls.
-
-          - Use the Library toolbar to choose lists, sort, and filter watched titles. Use the poster's three-dot menu to add a title to a list, or Ctrl+click to select several titles.
-          - Ctrl+Shift+C detects baked-in black bars for the current video. Press it again to restore the full frame. Ctrl+B toggles ambient border blur.
-          - Ctrl+1–6 selects Anime4K, Ctrl+7 selects FSR, and Ctrl+8 clears shaders.
-          - Missing or broken episode thumbnails try episode-specific artwork, including Ezra's absolute anime numbering fallback, before using show artwork. Home, Library, details and player previews keep their artwork fallbacks and unwatched-episode blur.
+          - **Settings:** See the installed Expanded version and check Stable or Beta on GitHub. Downloads are verified before you open the installer. Portable builds get a ZIP.
+          - **Playback → Tools:** Toggle ambient blur, detect or restore the crop, choose an upscaler, and copy a playback report without stream URLs or account data. Existing shortcuts still work.
+          - **Library → Back up lists:** Export custom lists and manual Anime or Live Action choices. Preview and merge a backup on another PC.
+          - The Library, artwork and manual next-episode prompt are checked daily against the live Stremio interface.
 
           Use the installer or extract the portable ZIP and run **Stremio 6 Expanded.exe**. Stremio 6 Expanded uses its own app profile. The installer adds its own Start menu entry and downloads WebView2 if needed.
 

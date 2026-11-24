@@ -45,6 +45,7 @@
         const incoming = decodeLists(saved);
         const result = current.map(list => ({...list, items: [...list.items]}));
         const rows = [];
+        let conflicts = 0;
         for (const list of incoming) {
             if (reservedListIds.has(list.id)) throw new Error('A list ID is reserved.');
             if (!categoryIds.has(list.id) && list.name.trim().length > 60) throw new Error('A list name is too long.');
@@ -55,7 +56,8 @@
             const conflicting = new Set(otherCategory?.items ?? []);
             let added = 0;
             for (const id of list.items) {
-                if (members.has(id) || conflicting.has(id)) continue;
+                if (conflicting.has(id)) { conflicts++; continue; }
+                if (members.has(id)) continue;
                 members.add(id);
                 added++;
             }
@@ -63,7 +65,7 @@
             else result.push({id: list.id, name: list.name.trim(), home: list.home !== false, items: [...members]});
             if (added || !target) rows.push({name: target?.name ?? list.name.trim(), action: target ? 'Merge' : 'Add', added});
         }
-        return {lists: result, rows};
+        return {lists: result, rows, conflicts};
     }
 
     function libraryRecords(uid, buckets) {
@@ -423,6 +425,75 @@
             h('button', {type: 'submit', disabled: busy}, 'Save lists'))));
     }
 
+    function ListBackup({React, close}) {
+        const h = React.createElement;
+        const ref = React.useRef(null);
+        const [busy, setBusy] = React.useState(false);
+        const [message, setMessage] = React.useState('');
+        const [error, setError] = React.useState('');
+        const [preview, setPreview] = React.useState(null);
+        React.useEffect(() => { ref.current?.showModal(); }, []);
+        const run = async task => {
+            setBusy(true);
+            setError('');
+            setMessage('');
+            try { await task(); }
+            catch (failure) { setError(failure.message); }
+            finally { setBusy(false); }
+        };
+        const exportFile = () => run(async () => {
+            const saved = await window.__stremioForkLists.exportLists();
+            if (!saved) throw new Error('Sign in before backing up Library lists.');
+            const date = new Date().toISOString().slice(0, 10);
+            const backup = {format: 'stremio-expanded-library-lists', ...saved};
+            const url = URL.createObjectURL(new Blob([JSON.stringify(backup, null, 2) + '\n'],
+                {type: 'application/json'}));
+            const link = document.createElement('a');
+            link.download = 'Stremio-Expanded-Library-' + date + '.json';
+            link.href = url;
+            link.click();
+            setTimeout(() => URL.revokeObjectURL(url), 30000);
+        });
+        const readFile = event => {
+            const file = event.target.files?.[0];
+            event.target.value = '';
+            if (!file) return;
+            setPreview(null);
+            void run(async () => {
+                if (file.size > 8 * 1024 * 1024) throw new Error('This backup is too large.');
+                const saved = parse(await file.text());
+                if (saved?.format !== 'stremio-expanded-library-lists')
+                    throw new Error('Choose a Stremio 6 Expanded Library backup.');
+                setPreview(await window.__stremioForkLists.previewImport(saved));
+            });
+        };
+        const restore = () => run(async () => {
+            await preview.apply();
+            setPreview(null);
+            setMessage('Library lists restored.');
+        });
+        return h('dialog', {ref, className: 'fork-list-dialog', 'aria-label': 'Back up and restore lists',
+            onCancel: event => { event.preventDefault(); if (!busy) close(); }},
+        h('h2', null, 'Back up and restore lists'),
+        h('p', null, 'Save your lists, memberships and manual Anime or Live Action choices to a file.'),
+        h('div', {className: 'fork-list-dialog-actions'},
+            h('button', {type: 'button', disabled: busy, onClick: exportFile}, 'Export lists'),
+            h('label', null, 'Choose backup to restore ',
+                h('input', {type: 'file', accept: '.json,application/json', disabled: busy, onChange: readFile}))),
+        preview && h('div', {className: 'fork-list-management'},
+            h('h3', null, 'Restore preview'),
+            h('p', null, 'Restoring adds to the lists on this device. Matching list IDs or names are merged.'),
+            preview.rows.length ? h('ul', null, preview.rows.map((row, index) =>
+                h('li', {key: index}, row.action + ' ' + row.name + ' \u00b7 ' + row.added + ' new memberships'))) :
+                h('p', null, 'This backup has no new lists or memberships.'),
+            preview.conflicts > 0 && h('p', null, 'Kept ' + preview.conflicts + ' conflicting manual category choices on this device.'),
+            h('button', {type: 'button', disabled: busy || !preview.rows.length, onClick: restore}, 'Restore lists')),
+        error && h('p', {role: 'alert'}, error),
+        message && h('p', {role: 'status'}, message),
+        h('div', {className: 'fork-list-dialog-actions'},
+            h('button', {type: 'button', disabled: busy, onClick: close}, 'Done')));
+    }
+
     const menuHandlers = new WeakMap();
 
     function LibraryLists({React, Nav, LibItem, notifications, styles, navProps, body, uid}) {
@@ -542,7 +613,9 @@
                 selected.size > 0 && h('button', {type: 'button', onClick: () => add(selected)}, 'Add to list (' + selected.size + ')'),
                 h('button', {type: 'button', disabled: !canEdit, onClick: () => {setNotice(''); setDialog({mode: 'create'});}}, 'Create list'),
                 h('button', {type: 'button', disabled: !canEdit,
-                    onClick: () => setDialog({mode: 'manage', lists})}, 'Manage lists')));
+                    onClick: () => setDialog({mode: 'manage', lists})}, 'Manage lists'),
+                h('button', {type: 'button', disabled: !canEdit,
+                    onClick: () => setDialog({mode: 'backup'})}, 'Back up lists')));
 
         let view = content;
         if (localMode) {
@@ -591,7 +664,8 @@
                     if (active && !draft.some(list => list.id === active.id))
                         location.hash = libraryRoute(path, 'all', sort);
                 }}),
-            dialog && dialog.mode !== 'manage' && h(ListDialog, {React, mode: dialog.mode, lists, count: dialog.ids?.length,
+            dialog?.mode === 'backup' && h(ListBackup, {React, close: () => setDialog(null)}),
+            dialog && (dialog.mode === 'create' || dialog.mode === 'add') && h(ListDialog, {React, mode: dialog.mode, lists, count: dialog.ids?.length,
                 close: () => setDialog(null), save: async value => {
                     let created;
                     await changeLists(uid, lists => {
@@ -673,7 +747,7 @@
                 throw new Error('Your saved lists are unavailable.');
             const revision = entry.record.revision;
             const preview = previewListImport(decodeLists(entry.record), saved);
-            return {rows: preview.rows, apply: () => changeLists(uid, current => {
+            return {rows: preview.rows, conflicts: preview.conflicts, apply: () => changeLists(uid, current => {
                 if (entry.record.revision !== revision) throw new Error('Your lists changed. Open the backup again to refresh the preview.');
                 current.splice(0, current.length, ...preview.lists);
             })};

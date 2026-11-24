@@ -6,7 +6,8 @@ try {
     $metadata = cargo metadata --no-deps --format-version 1 | ConvertFrom-Json
     if ($LASTEXITCODE) { throw 'Could not read package version.' }
     $package = $metadata.packages | Where-Object name -eq 'stremio-shell-ng'
-    & ./setup/package-preview.ps1 -Tag "custom-v$($package.version)"
+    $tag = if ($package.version -match '-custom\.\d+$') { "v$($package.version)" } else { "custom-v$($package.version)" }
+    & ./setup/package-preview.ps1 -Tag $tag
 } finally {
     Pop-Location
 }

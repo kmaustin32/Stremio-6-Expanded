@@ -168,8 +168,40 @@ const injected = ['next_episode.js','fork-lists.js','library_adapter.js','episod
         await dialog.getByRole('textbox',{name:'List name'}).fill('Weekend');
         await dialog.getByRole('button',{name:'Create',exact:true}).click();
         await page.waitForURL(url => /^[\da-f-]{36}$/i.test(new URLSearchParams(url.hash.split('?')[1]).get('forkList')));
+        await toolbar.getByRole('button',{name:'Back up lists',exact:true}).click();
+        const backup = page.getByRole('dialog',{name:'Back up and restore lists'});
+        const [download] = await Promise.all([
+            page.waitForEvent('download'),
+            backup.getByRole('button',{name:'Export lists'}).click(),
+        ]);
+        assert.match(download.suggestedFilename(), /^Stremio-Expanded-Library-\d{4}-\d{2}-\d{2}\.json$/);
+        const exported = JSON.parse(fs.readFileSync(await download.path(), 'utf8'));
+        assert.deepEqual(Object.keys(exported).sort(), ['format','lists','version']);
+        assert.ok(exported.lists.find(list => list.id === 'anime').items.includes('tt101'));
+        assert.ok(exported.lists.some(list => list.name === 'Weekend'));
+        const source = backup.locator('input[type=file]');
+        const upload = data => source.setInputFiles({
+            name:'restore.json', mimeType:'application/json', buffer:Buffer.from(JSON.stringify(data)),
+        });
+        await upload({format:'wrong',lists:[]});
+        await backup.getByRole('alert').getByText('Choose a Stremio 6 Expanded Library backup.').waitFor();
+        await upload({...exported, lists:[
+            {id:'live-action',name:'Live Action',items:['tt101']},
+            {id:'portable-example',name:'From another PC',items:['tt103'],home:false},
+        ]});
+        await backup.getByText('Add From another PC', {exact:false}).waitFor();
+        await backup.getByText('Kept 1 conflicting manual category choices on this device.').waitFor();
+        assert.ok(!(await page.evaluate(() => window.__stremioForkLists.exportLists())).lists
+            .some(list => list.id === 'portable-example'), 'Preview must not change the Library');
+        await backup.getByRole('button',{name:'Restore lists'}).click();
+        await backup.getByText('Library lists restored.').waitFor();
+        const restored = await page.evaluate(() => window.__stremioForkLists.exportLists());
+        assert.deepEqual(restored.lists.find(list => list.id === 'portable-example').items,['tt103']);
+        assert.ok(restored.lists.find(list => list.id === 'anime').items.includes('tt101'));
+        assert.ok(restored.lists.some(list => list.name === 'Weekend'));
+        await backup.getByRole('button',{name:'Done'}).click();
         assert.deepEqual(pageErrors, [], 'The hosted Library must render without uncaught errors');
-        console.log('PASS: current hosted UI individual Add to list, category move, list-only removal preserving Library titles, bulk selection, watched filter, and list creation.');
+        console.log('PASS: hosted Library menus, watched filters, list creation, export, restore preview and actual saved memberships.');
     } catch (error) {
         console.error(error);
         process.exitCode = 1;

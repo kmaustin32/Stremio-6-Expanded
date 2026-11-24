@@ -10,6 +10,10 @@ Get the Windows x64 installer or portable ZIP from the [releases page](https://g
 
 **5.0.32** restores Ezra's episode-specific anime thumbnail fallback. The project is now **Stremio 6 Expanded**. Upgrading preserves existing lists, player settings, streaming-server data and browser profiles. The installer retains compatibility with shortcuts targeting the old executable and replaces the old Start menu entry. Internal storage keys and the original installer identity intentionally stay the same to protect existing data.
 
+### Check for updates
+
+Open **Settings** to see the installed Expanded version, choose **Stable** or **Beta**, and select **Check for updates**. Beta includes both preview builds and newer stable releases. New beta installs default to Beta, and the app remembers your channel choice. Expanded checks this fork's GitHub releases and verifies the downloaded package against GitHub's SHA-256 digest. On an installed copy, select **Close app and open installer** after verification. Portable copies download a ZIP and let you open its folder.
+
 ## Manual next-episode prompt
 
 **5.0.33** allows the next-episode popup to appear near the end with **Auto Play off**, so you can choose **Watch now** manually. The existing popup-duration setting controls when it appears; **Disabled** still hides it. Auto Play remains off and does not start the next episode automatically. Dismissal, live TV, final episodes and the existing end-of-file navigation are preserved. The next prompt and Skip Outro do not overlap.
@@ -27,6 +31,11 @@ If a view lacks the full episode catalog needed for the conversion, an image fai
 - Use **Add to list** in a title's three-dot menu. **Ctrl+click** selects titles for a bulk edit, and a title can belong to multiple custom lists.
 - Anime and Live Action are filled automatically. Manual moves are saved, and custom lists can be shown on Home. Lists are saved on this computer for each Stremio account.
 - Temporary errors loading saved lists retry automatically after a short delay.
+- Use **Library → Back up lists** to export a JSON file with list membership, Home visibility, and manual Anime/Live Action choices. Keep the file anywhere you like, including a synced Drive folder. On another computer, sign in, choose the file in the same dialog, review the preview, and select **Restore lists**. Restore merges matching lists and keeps conflicting manual classifications from the device you are restoring to. The file covers Expanded lists and does not restore Stremio account data or add titles to the Stremio Library.
+
+## Playback Tools
+
+Select **Tools** in the bottom player controls for ambient blur, detecting or restoring black-bar crops, and choosing an Anime4K or FSR preset. The menu shows the active settings. **Copy playback report** copies a snapshot of the decoder, dropped frames, buffer status, and enabled processing. It excludes stream URLs, filenames, titles, and account details.
 
 ## Playback shortcuts
 
@@ -50,6 +59,8 @@ previous product name, startup and uninstall in an isolated runner account, and
 provides the tested files as a downloadable artifact without publishing a release.
 
 Stable fork tags use `custom-v<version>` so official Stremio tags can coexist with them. Start from this fork's `main` when creating an integration branch to bring in an official shell update. Add the upstream remote once per clone.
+
+Beta tags use `v<version>-custom.<number>` and include the suffix in the app's reported version. GitHub also checks the hosted Library, artwork and next-episode popup every day independently of releases.
 
 ```sh
 git remote add upstream https://github.com/Stremio/stremio-shell-ng.git

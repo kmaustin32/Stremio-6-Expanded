@@ -357,6 +357,22 @@ impl MainWindow {
         let hide_splash_sender = self.hide_splash_notice.sender();
         let focus_sender = self.focus_notice.sender();
         let autoupdater_setup_mutex = self.autoupdater_setup_file.clone();
+        let (expanded_updates_tx, expanded_updates_rx) = flume::bounded::<serde_json::Value>(1);
+        let expanded_updates_web = web_tx.clone();
+        let expanded_updates_quit = self.quit_notice.sender();
+        std::thread::spawn(move || {
+            let mut updates = super::expanded_updates::Updates::new();
+            for request in expanded_updates_rx {
+                let (response, quit) = updates.handle(&request);
+                let _ = expanded_updates_web.send(RPCResponse::response_message(Some(
+                    serde_json::json!([super::expanded_updates::COMMAND, response]),
+                )));
+                if quit {
+                    expanded_updates_quit.notice();
+                    break;
+                }
+            }
+        });
 
         let discord_rpc = DiscordRpc::new(web_tx.clone());
         let requested_fullscreen = self.requested_fullscreen.clone();
@@ -609,6 +625,18 @@ impl MainWindow {
                                     result
                                 ]))))
                                 .ok();
+                        }
+                    }
+                    Some(super::expanded_updates::COMMAND) => {
+                        if let Some(params) = msg.get_params() {
+                            if expanded_updates_tx.try_send(params.clone()).is_err() {
+                                let _ = web_tx_web.send(RPCResponse::response_message(Some(
+                                    serde_json::json!([super::expanded_updates::COMMAND, {
+                                        "requestId": params["requestId"],
+                                        "error": "An update check or download is already in progress."
+                                    }]),
+                                )));
+                            }
                         }
                     }
                     Some(player_command)

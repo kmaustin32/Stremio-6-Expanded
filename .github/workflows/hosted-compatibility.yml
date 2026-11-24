@@ -1,0 +1,38 @@
+name: Hosted Stremio compatibility
+
+on:
+  schedule:
+    - cron: '27 5 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: hosted-stremio-compatibility
+  cancel-in-progress: true
+
+jobs:
+  hosted:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Install browser test tools
+        run: npm install --prefix .ci-tools --no-save --ignore-scripts --no-audit --no-fund playwright@1.62.1
+      - name: Library lists and menus
+        env:
+          NODE_PATH: ${{ github.workspace }}/.ci-tools/node_modules
+        run: node tests/hosted-library.cjs
+      - name: Next-episode prompt
+        if: ${{ !cancelled() }}
+        env:
+          NODE_PATH: ${{ github.workspace }}/.ci-tools/node_modules
+        run: node tests/hosted-next-popup.cjs
+      - name: Episode artwork and spoiler blur
+        if: ${{ !cancelled() }}
+        env:
+          NODE_PATH: ${{ github.workspace }}/.ci-tools/node_modules
+        run: node tests/hosted-artwork.cjs

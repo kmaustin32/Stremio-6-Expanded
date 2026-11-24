@@ -47,6 +47,7 @@ function Start-And-Check([string] $Directory, [string] $Executable = 'Stremio 6 
     $profile = if ($CheckControls) { 'stremio-expanded-controls-profile' } else { 'stremio-6-expanded-test-profile' }
     $env:WEBVIEW2_USER_DATA_FOLDER = Join-Path $env:RUNNER_TEMP $profile
     $appArguments = @('--no-splash', '--start-hidden')
+    $output = @{}
     $app = $null
     try {
         if ($CheckControls) {
@@ -56,8 +57,12 @@ function Start-And-Check([string] $Directory, [string] $Executable = 'Stremio 6 
             $portProbe.Stop()
             $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = "--remote-debugging-address=127.0.0.1 --remote-debugging-port=$debugPort --disable-backgrounding-occluded-windows --disable-renderer-backgrounding"
             $appArguments = @('--no-splash')
+            $output = @{
+                RedirectStandardOutput = Join-Path $env:RUNNER_TEMP 'expanded-app.log'
+                RedirectStandardError = Join-Path $env:RUNNER_TEMP 'expanded-app-errors.log'
+            }
         }
-        $app = Start-Process -FilePath (Join-Path $Directory $Executable) -ArgumentList $appArguments -WorkingDirectory $Directory -WindowStyle Hidden -PassThru
+        $app = Start-Process -FilePath (Join-Path $Directory $Executable) -ArgumentList $appArguments -WorkingDirectory $Directory -WindowStyle Hidden -PassThru @output
         $deadline = (Get-Date).AddSeconds(45)
         do {
             $app.Refresh()
@@ -76,6 +81,26 @@ function Start-And-Check([string] $Directory, [string] $Executable = 'Stremio 6 
             Start-Sleep -Milliseconds 500
         } while ((Get-Date) -lt $deadline)
         throw 'The packaged streaming server did not start listening.'
+    } catch {
+        if ($CheckControls) {
+            $client = '{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}'
+            $versions = foreach ($key in @(
+                "HKLM:\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\$client",
+                "HKLM:\SOFTWARE\Microsoft\EdgeUpdate\Clients\$client",
+                "HKCU:\SOFTWARE\Microsoft\EdgeUpdate\Clients\$client"
+            )) { Get-ItemPropertyValue -LiteralPath $key -Name pv -ErrorAction SilentlyContinue }
+            Write-Host "Registered WebView2 versions: $($versions -join ', ')"
+            $webviews = @(Get-CimInstance Win32_Process -Filter "Name = 'msedgewebview2.exe'" |
+                Where-Object CommandLine -Like "*$profile*")
+            Write-Host "Browser processes using the test profile: $($webviews.Count)"
+            foreach ($file in $output.Values) {
+                if (Test-Path -LiteralPath $file) {
+                    Write-Host "Recent $([IO.Path]::GetFileName($file))"
+                    Get-Content -LiteralPath $file -Tail 15 | ForEach-Object { Write-Host $_ }
+                }
+            }
+        }
+        throw
     } finally {
         if ($app -and !$app.HasExited) { Stop-Process -Id $app.Id; $app.WaitForExit() }
         $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = $previousBrowserArguments
@@ -87,7 +112,7 @@ Compare-Payload $portable
 if ((Get-Item (Join-Path $portable 'Stremio 6 Expanded.exe')).VersionInfo.ProductName -ne 'Stremio 6 Expanded') {
     throw 'The executable product name did not change.'
 }
-Start-And-Check $portable -CheckControls
+Start-And-Check $portable
 
 $install = Join-Path $env:LOCALAPPDATA 'Programs/Stremio 6 Expanded'
 $installer = Join-Path $out "$prefix-Setup.exe"
@@ -96,7 +121,7 @@ if ($process.ExitCode) { throw "Installer smoke test failed ($($process.ExitCode
 Compare-Payload $install
 $shortcut = Join-Path ([Environment]::GetFolderPath('Programs')) 'Stremio 6 Expanded.lnk'
 if (!(Test-Path -LiteralPath $shortcut)) { throw 'The renamed Start menu shortcut is missing.' }
-Start-And-Check $install
+Start-And-Check $install -CheckControls
 $uninstall = Start-Process -FilePath (Join-Path $install 'unins000.exe') -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART' -WindowStyle Hidden -Wait -PassThru
 if ($uninstall.ExitCode -or (Test-Path -LiteralPath (Join-Path $install 'Stremio 6 Expanded.exe'))) {
     throw 'Installer uninstall smoke test failed.'

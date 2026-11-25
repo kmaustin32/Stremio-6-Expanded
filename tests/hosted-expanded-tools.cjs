@@ -81,11 +81,19 @@ async function waitInView(locator, message) {
                 if (method === 'ezra-playback') {
                     if (arg !== 'status') window.playerCalls.push(arg);
                     if (arg === 'blur') blur = !blur;
-                    if (arg === 'detect') crop = crop === 'locked' ? 'idle' : 'locked';
-                    if (arg === 'shader-7') shader = 7;
+                    if (arg === 'detect') {
+                        if (crop === 'locked') crop = 'idle';
+                        else {
+                            crop = 'detecting';
+                            setTimeout(() => { crop = 'locked'; }, 950);
+                        }
+                    }
+                    if (/^shader-[1-7]$/.test(arg)) shader = Number(arg.at(-1));
                     if (arg === 'clear') shader = 0;
                     if (arg === 'status') queueMicrotask(() => send('expanded-playback-status',{
-                        ready:true,blur,shader,crop,cropMessage:crop === 'locked' ? 'Black bars cropped.' : '',
+                        ready:true,blur,shader,crop,cropMessage:crop === 'locked' ?
+                            'Black bars cropped. Ctrl+Shift+C restores the full frame.' :
+                            crop === 'detecting' ? 'Detecting black bars. Keep the video playing.' : '',
                         report:{version:window.fixtureExpandedVersion,resolution:'1920 x 1080',codec:'h264',hardwareDecoder:'d3d11va',
                             output:'gpu-next',fps:24,renderDropped:2,decoderDropped:0,buffering:true,bufferPercent:33,
                             bufferSeconds:2.4,videoFilters:false,upscaling:shader ? 'FSR' : 'Off',borderBlur:blur,
@@ -93,7 +101,10 @@ async function waitInView(locator, message) {
                     }));
                 }
             };
-            Object.defineProperty(navigator,'clipboard',{value:{writeText:async value => {window.copiedReport=value;}}});
+            Object.defineProperty(navigator,'clipboard',{value:{writeText:async value => {
+                if (window.fixtureDenyClipboard) throw new Error('Clipboard denied by fixture');
+                window.copiedReport=value;
+            }}});
         ` + '\n' + script});
 
         // Reproduce clicking Settings from Home. A direct URL fires a different navigation event.
@@ -102,15 +113,19 @@ async function waitInView(locator, message) {
         await page.waitForURL(url => url.hash === '#/settings');
         const updates = page.getByRole('region',{name:'Expanded updates'});
         const versionHeading = updates.getByText('Stremio 6 Expanded ' + versionLabel);
-        await versionHeading.waitFor({timeout:8000});
+        await page.getByText('Help and about',{exact:true}).first().waitFor();
+        assert.equal(await updates.count(), 0, 'The update card belongs only on Help and about');
         const checkForUpdates = updates.getByRole('button',{name:'Check for updates'});
-        await waitInView(checkForUpdates, 'The update button must be on screen when Settings first opens');
         await page.getByText('Help and about',{exact:true}).first().click();
         await page.getByText('About Stremio',{exact:true}).waitFor();
+        await versionHeading.waitFor();
         await waitInView(checkForUpdates, 'The update button must be visible on Help and about');
         await page.goto(origin + '/#/settings/interface');
+        await updates.waitFor({state:'detached'});
+        assert.equal(await updates.count(), 0);
+        await page.getByText('Help and about',{exact:true}).first().click();
         await versionHeading.waitFor();
-        await waitInView(checkForUpdates, 'The update button must stay in view on the Interface page');
+        await waitInView(checkForUpdates, 'The card must reappear after returning to Help and about');
         const channel = updates.getByLabel('Update channel');
         assert.equal(await channel.inputValue(), 'beta', 'New beta installations start on the Beta channel');
         await channel.selectOption('stable');
@@ -149,11 +164,25 @@ async function waitInView(locator, message) {
         await waitInView(toolsButton, 'The player button must remain usable when the native row clips');
         await toolsButton.click();
         const tools = page.getByRole('dialog',{name:'Playback Tools'});
+        await tools.getByRole('button',{name:'Ambient Blur: Off'}).waitFor();
+        async function geometry() {
+            return tools.evaluate(dialog => [dialog,
+                ...dialog.querySelectorAll('button, select')].map(element => {
+                const {x,y,width,height} = element.getBoundingClientRect();
+                return [x,y,width,height];
+            }));
+        }
+        const initial = await geometry();
         await tools.getByRole('button',{name:'Ambient Blur: Off'}).click();
         await tools.getByRole('button',{name:'Ambient Blur: On'}).waitFor();
+        assert.deepEqual(await geometry(), initial, 'The blur toggle must not move the rows');
         await tools.getByRole('button',{name:'Detect Black Bars'}).click();
+        await tools.getByRole('button',{name:'Detecting Black Bars...'}).waitFor();
+        assert.deepEqual(await geometry(), initial, 'Detection must leave the rows and footer in place');
         await tools.getByRole('button',{name:'Restore Frame'}).waitFor();
-        await tools.getByLabel('Upscaling').selectOption('7');
+        assert.deepEqual(await geometry(), initial, 'A crop message must not resize the dialog');
+        const upscaling = tools.getByLabel('Upscaling');
+        await upscaling.selectOption('7');
         await tools.getByRole('button',{name:'Copy playback report'}).click();
         await page.waitForFunction(() => window.copiedReport);
         const report = await page.evaluate(() => window.copiedReport);
@@ -162,19 +191,75 @@ async function waitInView(locator, message) {
         assert.match(report, /Upscaling: FSR/);
         assert.match(report, /Black-bar crop: Yes/);
         assert.doesNotMatch(report, /example\.invalid|private-token/);
+        assert.deepEqual(await geometry(), initial, 'Copy feedback must not move the rows');
         await tools.getByRole('button',{name:'Restore Frame'}).click();
         await tools.getByRole('button',{name:'Detect Black Bars'}).waitFor();
-        await tools.getByLabel('Upscaling').selectOption('0');
-        assert.deepEqual(await page.evaluate(() => window.playerCalls), ['blur','detect','shader-7','detect','clear']);
+        assert.deepEqual(await geometry(), initial, 'Restoring the frame must not move the rows');
+
+        const readTheme = () => tools.evaluate(dialog => {
+            const button = document.querySelector('.expanded-playback-button');
+            const pixel = color => {
+                const context = document.createElement('canvas').getContext('2d');
+                context.fillStyle = color;
+                context.fillRect(0,0,1,1);
+                return [...context.getImageData(0,0,1,1).data];
+            };
+            return [pixel(getComputedStyle(button).backgroundColor), pixel(getComputedStyle(dialog).backgroundColor),
+                pixel(getComputedStyle(dialog).color), pixel(getComputedStyle(dialog.querySelector('[aria-pressed="true"]')).borderColor),
+                pixel(getComputedStyle(button).color), pixel(getComputedStyle(dialog.querySelector('.expanded-playback-done')).backgroundColor)];
+        });
+        const darkTheme = await readTheme();
+        assert.ok(darkTheme[0][3] < 255 && darkTheme[1][3] < 255, 'Both surfaces are slightly translucent');
+        await page.evaluate(() => {
+            const player = document.querySelector('[class*="player-container-"]');
+            player.style.setProperty('--modal-background-color', '#f4eddf');
+            player.style.setProperty('--foreground-color-primary', '#231b17');
+            player.style.setProperty('--accent-color', '#28765b');
+        });
+        const lightTheme = await readTheme();
+        assert.ok(lightTheme[0][0] > 210 && lightTheme[1][0] > 210, 'Both surfaces adopt the new theme while open');
+        assert.deepEqual(lightTheme[2], [35,27,23,255]);
+        assert.deepEqual(lightTheme[3], [40,118,91,255]);
+        assert.deepEqual(lightTheme[4], lightTheme[2], 'Both the button and popup use the selected foreground');
+        assert.deepEqual(lightTheme[5], lightTheme[3], 'Done uses the same selected accent as the controls');
+
+        await page.setViewportSize({width:390,height:590});
+        await page.evaluate(() => { document.documentElement.style.zoom = '1.25'; });
+        await tools.getByRole('button',{name:'Done'}).scrollIntoViewIfNeeded();
+        const narrow = await geometry();
+        await upscaling.selectOption('4');
+        assert.deepEqual(await geometry(), narrow, 'A longer preset must keep the same layout on a small, zoomed window');
+        assert.ok(await upscaling.evaluate(select => {
+            const dialog = select.closest('dialog');
+            const style = getComputedStyle(select);
+            const context = document.createElement('canvas').getContext('2d');
+            context.font = [style.fontStyle, style.fontWeight, style.fontSize, style.fontFamily].join(' ');
+            const space = select.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+            return dialog.scrollWidth <= dialog.clientWidth + 1 &&
+                context.measureText(select.selectedOptions[0].text).width <= space;
+        }), 'The full preset name must fit without horizontal scrolling');
+
+        await page.evaluate(() => { window.fixtureDenyClipboard = true; });
+        await tools.getByRole('button',{name:'Copy playback report'}).click();
+        await tools.getByRole('textbox',{name:'Playback report text'}).waitFor();
+        assert.ok(await tools.getByRole('textbox',{name:'Playback report text'}).inputValue());
+        await upscaling.selectOption('0');
+        assert.deepEqual(await page.evaluate(() => window.playerCalls), ['blur','detect','shader-7','detect','shader-4','clear']);
         await tools.getByRole('button',{name:'Done'}).click();
         await tools.waitFor({state:'detached'});
+        await page.setViewportSize({width:800,height:550});
+        await page.evaluate(() => { document.documentElement.style.zoom = ''; });
         await page.goBack();
         await toolsButton.waitFor({state:'detached'});
         await page.goForward();
         await page.mouse.move(530,450);
         await toolsButton.waitFor();
+        await toolsButton.click();
+        await tools.waitFor();
+        await page.goBack();
+        await tools.waitFor({state:'detached'});
         assert.deepEqual(errors, []);
-        console.log('PASS: in-app Settings and Player navigation, update check, playback tools, and redacted report');
+        console.log('PASS: Help and about updater, playback navigation, live palette changes, stable zoomed layout, and report copy');
     } finally {
         await browser.close();
     }

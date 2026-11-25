@@ -49,8 +49,11 @@
         for (const list of incoming) {
             if (reservedListIds.has(list.id)) throw new Error('A list ID is reserved.');
             if (!categoryIds.has(list.id) && list.name.trim().length > 60) throw new Error('A list name is too long.');
-            const target = result.find(item => item.id === list.id || (!categoryIds.has(item.id) &&
-                !categoryIds.has(list.id) && item.name.trim().toLowerCase() === list.name.trim().toLowerCase()));
+            let target = result.find(item => item.id === list.id);
+            if (!target && !categoryIds.has(list.id)) {
+                const name = list.name.trim().toLowerCase();
+                target = result.find(item => !categoryIds.has(item.id) && item.name.trim().toLowerCase() === name);
+            }
             const members = new Set(target?.items ?? []);
             const otherCategory = categoryIds.has(list.id) && result.find(item => item.id !== list.id && categoryIds.has(item.id));
             const conflicting = new Set(otherCategory?.items ?? []);

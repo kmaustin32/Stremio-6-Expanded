@@ -151,7 +151,8 @@
     }
 
     function showPlayback() {
-        if (playbackDialog?.open) return;
+        if (playbackDialog?.open && playbackDialog.isConnected) return;
+        playbackDialog?.dispose();
         const popup = element('dialog');
         popup.className = 'expanded-tools expanded-playback-dialog';
         popup.setAttribute('aria-label', 'Playback Tools');
@@ -250,11 +251,13 @@
         (playbackButton?.closest('[class*="player-container-"]') ?? document.body).append(popup);
         popup.showModal();
         const timer = setInterval(refresh, 750);
-        popup.addEventListener('close', () => {
+        popup.dispose = () => {
             clearInterval(timer);
+            if (popup.open && popup.isConnected) popup.close();
             popup.remove();
             if (playbackDialog === popup) playbackDialog = undefined;
-        });
+        };
+        popup.addEventListener('close', popup.dispose, {once: true});
         popup.showStatus = show;
         playbackDialog = popup;
         refresh();
@@ -290,7 +293,9 @@
                 } else if (page.firstElementChild !== updatePanel) page.prepend(updatePanel);
             }
         } else updatePanel?.remove();
-        if (activePlayer()) {
+        const inPlayer = activePlayer();
+        if (playbackDialog && (!inPlayer || !playbackDialog.isConnected)) playbackDialog.dispose();
+        if (inPlayer) {
             // Attach to the controls layer, not the clipped row that holds the native buttons.
             const bar = document.querySelector('[class*="player-container-"] [class*="control-bar-container-"]');
             if (bar && playbackButton?.parentElement !== bar) {
@@ -303,7 +308,6 @@
             }
         } else {
             playbackButton?.remove();
-            if (playbackDialog?.open) playbackDialog.close();
         }
     }
 

@@ -10,6 +10,13 @@ Get the Windows x64 installer or portable ZIP from the [releases page](https://g
 
 **5.0.32** restores Ezra's episode-specific anime thumbnail fallback. The project is now **Stremio 6 Expanded**. Upgrading preserves existing lists, player settings, streaming-server data and browser profiles. The installer retains compatibility with shortcuts targeting the old executable and replaces the old Start menu entry. Internal storage keys and the original installer identity intentionally stay the same to protect existing data.
 
+## What's new in 5.1.0
+
+- Check for updates from **Settings → Help and about**. Choose the Stable or Beta channel and download a verified installer or portable ZIP.
+- Open **Playback Tools** above the seek bar to toggle ambient blur, detect or restore black bars, pick an Anime4K or FSR preset, and copy a playback report. The translucent popup uses the selected theme's accent, keeps its controls in place as settings change, and reopens after the player rebuilds its controls.
+- Back up custom Library lists and manual Anime/Live Action choices. Preview the merge before restoring, including into lists that have since been renamed.
+- Repeat local builds safely in the same checkout. The checksum file covers the installer and ZIP for the current version. Daily checks now also cover Playback Tools and the updater against the live Stremio interface.
+
 ### Check for updates
 
 Go to **Settings → Help and about**. The **Stremio 6 Expanded** card shows the installed version. Choose **Stable** or **Beta**, then select **Check for updates**. Beta includes both preview builds and newer stable releases. New beta installs default to Beta, and the app remembers your channel choice. Expanded checks this fork's GitHub releases and verifies the downloaded package against GitHub's SHA-256 digest. On an installed copy, select **Close app and open installer** after verification. Portable copies download a ZIP and let you open its folder.
@@ -60,7 +67,7 @@ provides the tested files as a downloadable artifact without publishing a releas
 
 Stable fork tags use `custom-v<version>` so official Stremio tags can coexist with them. Start from this fork's `main` when creating an integration branch to bring in an official shell update. Add the upstream remote once per clone.
 
-Beta tags use `v<version>-custom.<number>` and include the suffix in the app's reported version. GitHub also checks the hosted Library, artwork and next-episode popup every day independently of releases.
+Beta tags use `v<version>-custom.<number>` and include the suffix in the app's reported version. GitHub checks the hosted interface daily independently of releases.
 
 ```sh
 git remote add upstream https://github.com/Stremio/stremio-shell-ng.git

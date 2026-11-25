@@ -61,6 +61,7 @@ npm install --prefix .ci-tools --no-save --ignore-scripts --no-audit --no-fund p
 $env:NODE_PATH = "$pwd/.ci-tools/node_modules"
 node tests/hosted-library.cjs
 node tests/hosted-artwork.cjs
+node tests/hosted-expanded-tools.cjs
 ```
 
 `STREMIO_TEST_BROWSER` can select another installed Chromium browser. The test
@@ -68,10 +69,10 @@ does not use a real account, user profile, private stream, or streaming provider
 Its Library saves stay in memory. It requires access to the public Stremio WebUI;
 distinguish a service outage from an interface-contract change when it fails.
 
-The **Hosted Stremio compatibility** workflow runs those hosted checks and the
-manual next-episode test daily on the default branch. The beta's hosted Tools
-test also opens the real Settings and Player routes and checks the updates
-panel, playback controls and redacted report using a simulated native bridge.
+The **Hosted Stremio compatibility** workflow runs these checks and the manual
+next-episode test daily on the default branch. The updater and Playback Tools
+test opens the real Settings and Player routes and checks the updates panel,
+theme changes, dialog recovery and redacted report using a simulated native bridge.
 
 The web interface is hosted separately and can change after a desktop release.
 Tests reduce regression risk; they cannot guarantee every future remote change

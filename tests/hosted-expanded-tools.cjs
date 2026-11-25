@@ -20,6 +20,8 @@ const script = (() => {
 const manifest = fs.readFileSync(path.join(__dirname, '../Cargo.toml'), 'utf8');
 const version = manifest.match(/^version\s*=\s*"([^"]+)"/m)[1];
 const versionLabel = version.replace(/-custom\.(\d+)$/, ' Beta $1');
+const [major, minor, patch] = version.split('-')[0].split('.').map(Number);
+const betaUpdate = `${major}.${minor}.${patch + 1}-custom.2`;
 const origin = 'https://web.stremio.com';
 
 // Unlike Playwright clicks, this check does not scroll the element into view.
@@ -49,7 +51,9 @@ async function waitInView(locator, message) {
         const errors = [];
         page.on('pageerror', error => errors.push(error.message));
         await page.route('https://expanded-fixture.test/**', route => route.fulfill({status:404,body:'synthetic fixture'}));
-        await page.addInitScript({content:'window.fixtureExpandedVersion = ' + JSON.stringify(version) + ';\n' + String.raw`
+        await page.addInitScript({content:
+            'window.fixtureExpandedVersion = ' + JSON.stringify(version) + ';\n' +
+            'window.fixtureBetaUpdate = ' + JSON.stringify(betaUpdate) + ';\n' + String.raw`
             window.chrome ||= {};
             const bridge = window.chrome.webview = new EventTarget();
             window.qt = {webChannelTransport: {send: raw => bridge.postMessage(raw)}};
@@ -74,7 +78,7 @@ async function waitInView(locator, message) {
                 if (method === 'expanded-updates') {
                     window.updateCalls.push(arg);
                     const value = arg.action === 'info' ? {version:window.fixtureExpandedVersion,portable:false} :
-                        arg.action === 'check' ? {available:arg.channel === 'beta' ? '5.0.35-custom.2' : null} :
+                        arg.action === 'check' ? {available:arg.channel === 'beta' ? window.fixtureBetaUpdate : null} :
                         arg.action === 'download' ? {downloaded:true} : {opened:true};
                     queueMicrotask(() => send(method,{requestId:arg.requestId,...value}));
                 }
@@ -127,16 +131,17 @@ async function waitInView(locator, message) {
         await versionHeading.waitFor();
         await waitInView(checkForUpdates, 'The card must reappear after returning to Help and about');
         const channel = updates.getByLabel('Update channel');
-        assert.equal(await channel.inputValue(), 'beta', 'New beta installations start on the Beta channel');
+        const defaultChannel = version.includes('-custom.') ? 'beta' : 'stable';
+        assert.equal(await channel.inputValue(), defaultChannel, 'The default channel matches the installed release type');
         await channel.selectOption('stable');
         await checkForUpdates.click();
         await updates.getByText('You are up to date on this channel.').waitFor();
+        await channel.selectOption('beta');
         await page.reload();
         await versionHeading.waitFor();
-        assert.equal(await channel.inputValue(), 'stable');
-        await channel.selectOption('beta');
+        assert.equal(await channel.inputValue(), 'beta');
         await checkForUpdates.click();
-        await updates.getByText('Available: 5.0.35 Beta 2').waitFor();
+        await updates.getByText('Available: ' + betaUpdate.replace('-custom.', ' Beta ')).waitFor();
         await updates.getByRole('button',{name:'Download update'}).click();
         await updates.getByText('Download verified.',{exact:false}).waitFor();
         assert.ok(!(await page.evaluate(() => window.updateCalls)).some(call => call.action === 'open'));
@@ -274,6 +279,9 @@ async function waitInView(locator, message) {
         await toolsButton.waitFor();
         await toolsButton.click();
         await tools.waitFor();
+        await tools.evaluate(dialog => dialog.remove());
+        await toolsButton.click();
+        await tools.waitFor({timeout:3_000});
         await page.goBack();
         await tools.waitFor({state:'detached'});
         assert.deepEqual(errors, []);

@@ -36,3 +36,8 @@ jobs:
         env:
           NODE_PATH: ${{ github.workspace }}/.ci-tools/node_modules
         run: node tests/hosted-artwork.cjs
+      - name: Updater and Playback Tools
+        if: ${{ !cancelled() }}
+        env:
+          NODE_PATH: ${{ github.workspace }}/.ci-tools/node_modules
+        run: node tests/hosted-expanded-tools.cjs

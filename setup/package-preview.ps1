@@ -11,8 +11,11 @@ if ($SmokeTest -and $env:CI -ne 'true') {
 }
 $version = $Tag -replace '^(?:custom-)?v', ''
 $prefix = "Stremio-6-Expanded-$version-x64"
-$payload = (New-Item -ItemType Directory -Path 'preview-payload').FullName
-$out = (New-Item -ItemType Directory -Path 'preview-output').FullName
+$stagingRoot = (New-Item -ItemType Directory -Path 'preview-payload' -Force).FullName
+$payload = (New-Item -ItemType Directory -Path (Join-Path $stagingRoot ([guid]::NewGuid().ToString()))).FullName
+$out = (New-Item -ItemType Directory -Path 'preview-output' -Force).FullName
+$installer = Join-Path $out "$prefix-Setup.exe"
+$zip = Join-Path $out "$prefix.zip"
 
 Copy-Item 'target/x86_64-pc-windows-msvc/release/stremio-shell-ng.exe' (Join-Path $payload 'Stremio 6 Expanded.exe')
 Copy-Item 'libmpv-2.dll', 'server.js', 'README.md' $payload
@@ -27,8 +30,7 @@ if (!(Test-Path -LiteralPath $iscc)) {
 & $iscc "/DPayloadDir=$payload" "/DPreviewVersion=$version" "/O$out" 'setup/Stremio-6-Expanded.iss'
 if ($LASTEXITCODE) { throw "Installer compilation failed ($LASTEXITCODE)." }
 
-$zip = Join-Path $out "$prefix.zip"
-Compress-Archive -Path "$payload/*" -DestinationPath $zip
+Compress-Archive -Path "$payload/*" -DestinationPath $zip -Force
 if ($SmokeTest) {
 $portable = Join-Path $env:RUNNER_TEMP 'stremio-6-expanded-portable'
 Expand-Archive -Path $zip -DestinationPath $portable
@@ -71,7 +73,6 @@ if ((Get-Item (Join-Path $portable 'Stremio 6 Expanded.exe')).VersionInfo.Produc
 Start-And-Check $portable
 
 $install = Join-Path $env:LOCALAPPDATA 'Programs/Stremio 6 Expanded'
-$installer = Join-Path $out "$prefix-Setup.exe"
 $process = Start-Process -FilePath $installer -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/SP-' -WindowStyle Hidden -Wait -PassThru
 if ($process.ExitCode) { throw "Installer smoke test failed ($($process.ExitCode))." }
 Compare-Payload $install
@@ -128,7 +129,10 @@ $uninstall = Start-Process -FilePath (Join-Path $legacyInstall 'unins000.exe') -
 if ($uninstall.ExitCode) { throw 'Upgraded installation did not uninstall.' }
 }
 
-$checksums = Get-ChildItem -LiteralPath $out -File | ForEach-Object {
+$checksums = Get-Item -LiteralPath $installer, $zip | ForEach-Object {
     "$((Get-FileHash -Algorithm SHA256 -LiteralPath $_.FullName).Hash.ToLowerInvariant())  $($_.Name)"
 }
 $checksums | Set-Content -Encoding ascii (Join-Path $out 'SHA256SUMS.txt')
+if ((Split-Path -LiteralPath $payload) -eq $stagingRoot) {
+    Remove-Item -LiteralPath $payload -Recurse
+}

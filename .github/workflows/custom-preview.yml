@@ -94,12 +94,14 @@ jobs:
           - **Settings → Help and about:** See the installed Expanded version and check Stable or Beta on GitHub. Downloads are verified before you open the installer. Portable builds get a ZIP.
           - **Playback Tools, above the left end of the seek bar:** The button and translucent popup follow your Stremio theme, including the seek bar's accent for hover, focus, the active blur toggle and Done. Controls stay in place when you toggle blur, detect or restore the crop, choose an upscaler, or copy a playback report. Move the mouse during playback to show the controls. Existing shortcuts still work.
           - **Library → Back up lists:** Export custom lists and manual Anime or Live Action choices. Preview and merge a backup on another PC.
-          - The Library, artwork and manual next-episode prompt are checked daily against the live Stremio interface.
+          - List restores match renamed lists by their saved IDs first, and Playback Tools reopens if the player rebuilds its controls.
+          - The updater, Playback Tools, Library, artwork and manual next-episode prompt are checked daily against the live Stremio interface.
 
           Use the installer or extract the portable ZIP and run **Stremio 6 Expanded.exe**. Stremio 6 Expanded uses its own app profile. The installer adds its own Start menu entry and downloads WebView2 if needed.
 
           Windows build and smoke tests: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
           "@ | Set-Content -Encoding utf8 $notes
-          $assets = (Get-ChildItem preview-output -File).FullName
+          $prefix = "preview-output/Stremio-6-Expanded-$version-x64"
+          $assets = (Get-Item -LiteralPath "$prefix-Setup.exe", "$prefix.zip", 'preview-output/SHA256SUMS.txt').FullName
           gh release create $env:GITHUB_REF_NAME @assets --repo $env:GITHUB_REPOSITORY --verify-tag @flags --title $title --notes-file $notes
           if ($LASTEXITCODE) { exit $LASTEXITCODE }

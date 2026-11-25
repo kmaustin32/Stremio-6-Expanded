@@ -133,6 +133,20 @@ test('keeps saved list membership and honors manual Anime/Live Action moves', ()
     assert.deepEqual(imported.lists.find(list => list.id === 'favorites').items, ['kitsu:4','tt1']);
 });
 
+test('restores a renamed list by ID before considering a matching name', () => {
+    const lists = decodeLists({version:1, lists:[
+        {id:'other-id', name:'Weekend', items:['tt1']},
+        {id:'same-id', name:'Renamed', items:['tt2'], home:false}
+    ]});
+    const backup = {version:1, lists:[{id:'same-id', name:'Weekend', items:['tt3']}]};
+    const restored = previewListImport(lists, backup);
+    assert.deepEqual(restored.lists.find(list => list.id === 'other-id').items, ['tt1']);
+    assert.deepEqual(restored.lists.find(list => list.id === 'same-id'), {
+        id:'same-id', name:'Renamed', items:['tt2','tt3'], home:false
+    });
+    assert.deepEqual(restored.rows, [{name:'Renamed', action:'Merge', added:1}]);
+});
+
 test('only the requested playback shortcuts reach the player', () => {
     const sent = [];
     let down;

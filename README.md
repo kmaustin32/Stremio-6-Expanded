@@ -35,7 +35,7 @@ If a view lacks the full episode catalog needed for the conversion, an image fai
 
 ## Playback Tools
 
-During playback, move the mouse to show the player controls. Select **Playback Tools** just above the left end of the seek bar for ambient blur, detecting or restoring black-bar crops, and choosing an Anime4K or FSR preset. The button and translucent popup follow the selected Stremio theme. The controls stay in place as selections and status messages change. **Copy playback report** copies a snapshot of the decoder, dropped frames, buffer status, and enabled processing. It excludes stream URLs, filenames, titles, and account details.
+During playback, move the mouse to show the player controls. Select **Playback Tools** just above the left end of the seek bar for ambient blur, detecting or restoring black-bar crops, and choosing an Anime4K or FSR preset. The button and translucent popup follow the selected Stremio theme, including the seek bar's accent for highlights, focus rings and **Done**. The controls stay in place as selections and status messages change. **Copy playback report** copies a snapshot of the decoder, dropped frames, buffer status, and enabled processing. It excludes stream URLs, filenames, titles, and account details.
 
 ## Playback shortcuts
 

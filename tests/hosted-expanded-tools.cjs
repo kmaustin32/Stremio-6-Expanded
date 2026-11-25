@@ -162,6 +162,20 @@ async function waitInView(locator, message) {
         const nativeButtons = page.locator('[class*="control-bar-buttons-container-"]').first();
         await nativeButtons.evaluate(node => { node.style.maxWidth = '20px'; });
         await waitInView(toolsButton, 'The player button must remain usable when the native row clips');
+        const applyPalette = (accent, surface, foreground) => page.evaluate(({accent,surface,foreground}) => {
+            const player = document.querySelector('[class*="player-container-"]');
+            player.style.setProperty('--accent-color', '#7b5bf5');
+            player.style.setProperty('--accent-background-color', accent);
+            player.style.setProperty('--modal-background-color', surface);
+            player.style.setProperty('--foreground-color-primary', foreground);
+        }, {accent,surface,foreground});
+        const seekTrack = seek.locator('[class^="track-"]:not([class^="track-before-"]):not([class^="track-after-"])').first();
+        const seekAccent = () => seekTrack.evaluate(track => getComputedStyle(track).backgroundColor);
+        await applyPalette('#d6492d', '#221411', '#f5ede8');
+        assert.equal(await seekAccent(), 'rgb(214, 73, 45)', 'The native seek bar uses the selected theme');
+        await toolsButton.hover();
+        assert.equal(await toolsButton.evaluate(button => getComputedStyle(button).borderColor), await seekAccent(),
+            'The hovered Playback Tools button must match the seek bar, even if the brand token is still purple');
         await toolsButton.click();
         const tools = page.getByRole('dialog',{name:'Playback Tools'});
         await tools.getByRole('button',{name:'Ambient Blur: Off'}).waitFor();
@@ -210,18 +224,22 @@ async function waitInView(locator, message) {
         });
         const darkTheme = await readTheme();
         assert.ok(darkTheme[0][3] < 255 && darkTheme[1][3] < 255, 'Both surfaces are slightly translucent');
-        await page.evaluate(() => {
-            const player = document.querySelector('[class*="player-container-"]');
-            player.style.setProperty('--modal-background-color', '#f4eddf');
-            player.style.setProperty('--foreground-color-primary', '#231b17');
-            player.style.setProperty('--accent-color', '#28765b');
-        });
+        assert.deepEqual(darkTheme[3], [214,73,45,255], 'The selected blur toggle uses the warm theme accent');
+        assert.deepEqual(darkTheme[5], darkTheme[3], 'Done uses the same warm accent');
+        await applyPalette('#28765b', '#f4eddf', '#231b17');
         const lightTheme = await readTheme();
         assert.ok(lightTheme[0][0] > 210 && lightTheme[1][0] > 210, 'Both surfaces adopt the new theme while open');
         assert.deepEqual(lightTheme[2], [35,27,23,255]);
         assert.deepEqual(lightTheme[3], [40,118,91,255]);
         assert.deepEqual(lightTheme[4], lightTheme[2], 'Both the button and popup use the selected foreground');
         assert.deepEqual(lightTheme[5], lightTheme[3], 'Done uses the same selected accent as the controls');
+        const detect = tools.getByRole('button',{name:'Detect Black Bars'});
+        await detect.hover();
+        assert.equal(await detect.evaluate(button => getComputedStyle(button).borderColor), await seekAccent());
+        await detect.focus();
+        await page.keyboard.press('Tab');
+        assert.ok(await upscaling.evaluate(select => select.matches(':focus-visible')));
+        assert.equal(await upscaling.evaluate(select => getComputedStyle(select).outlineColor), await seekAccent());
 
         await page.setViewportSize({width:390,height:590});
         await page.evaluate(() => { document.documentElement.style.zoom = '1.25'; });

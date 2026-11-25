@@ -332,7 +332,8 @@
                 --expanded-foreground: var(--foreground-color-primary, #f4f3fa);
                 --expanded-muted: var(--foreground-color-secondary, #cac5d0);
                 --expanded-surface: var(--modal-background-color, #22232c);
-                --expanded-accent: var(--accent-color, #7b5bf5);
+                /* Match the seek bar's theme accent; the brand color can stay purple. */
+                --expanded-accent: var(--accent-background-color, var(--accent-color, #7b5bf5));
                 --expanded-accent-text: var(--accent-foreground-color, white);
                 --expanded-line: color-mix(in srgb, var(--expanded-foreground) 18%, transparent);
                 --expanded-field: color-mix(in srgb, var(--expanded-foreground) 8%, var(--expanded-surface));

@@ -138,6 +138,7 @@
             'Video filters active: ' + yesNo(report.videoFilters),
             'NVIDIA video scaling / HDR: ' + yesNo(report.gpuScaling) + ' / ' + yesNo(report.gpuHdr),
             'Upscaling: ' + report.upscaling,
+            'Extra sharpening: ' + (Number.isFinite(report.sharpening) ? report.sharpening + '%' : 'Unavailable'),
             'Ambient blur: ' + yesNo(report.borderBlur),
             'Black-bar crop: ' + yesNo(report.blackBarCrop),
         ].join('\n');
@@ -173,7 +174,39 @@
         selectWrap.append(shader);
         shader.append(...presetNames.map((name, index) => new Option(name, index)), new Option('Custom shaders', '-1'));
         shader.lastElementChild.disabled = true;
-        shader.addEventListener('change', () => operate(shader.value === '0' ? 'clear' : 'shader-' + shader.value));
+        shader.addEventListener('change', () => operate(shader.value === '0' ? 'upscaling-off' : 'shader-' + shader.value));
+        const sharpening = element('input');
+        sharpening.type = 'range';
+        sharpening.id = 'expanded-playback-sharpening';
+        sharpening.min = '0';
+        sharpening.max = '100';
+        sharpening.value = '0';
+        sharpening.disabled = true;
+        const sharpeningLabel = element('label', 'Extra sharpening');
+        sharpeningLabel.htmlFor = sharpening.id;
+        const sharpeningValue = element('span');
+        sharpeningValue.setAttribute('aria-hidden', 'true');
+        const sharpeningControl = element('div');
+        sharpeningControl.className = 'expanded-playback-sharpening';
+        sharpeningControl.append(sharpening, sharpeningValue);
+        const showSharpeningValue = () => {
+            const value = sharpening.value + '%';
+            sharpeningValue.textContent = value;
+            sharpening.setAttribute('aria-valuetext', sharpening.valueAsNumber ? value : 'Off');
+        };
+        showSharpeningValue();
+        let sharpenFrame;
+        const applySharpening = () => {
+            if (sharpenFrame === undefined) return;
+            cancelAnimationFrame(sharpenFrame);
+            sharpenFrame = undefined;
+            send(playerCommand, 'sharpen-' + sharpening.value);
+        };
+        sharpening.addEventListener('input', () => {
+            showSharpeningValue();
+            sharpenFrame ??= requestAnimationFrame(applySharpening);
+        });
+        sharpening.addEventListener('change', applySharpening);
         const fallback = element('textarea');
         fallback.readOnly = true;
         fallback.hidden = true;
@@ -205,6 +238,15 @@
         const show = status => {
             blur.disabled = shader.disabled = copy.disabled = !status.ready;
             crop.disabled = !status.ready || status.crop === 'detecting';
+            sharpening.disabled = !status.ready || !status.sharpeningAvailable;
+            sharpening.title = status.ready && !status.sharpeningAvailable ? 'Extra sharpening requires GPU Next.' : '';
+            if (sharpenFrame === undefined && !sharpening.matches(':active')) {
+                const value = String(status.sharpening ?? 0);
+                if (sharpening.value !== value) {
+                    sharpening.value = value;
+                    showSharpeningValue();
+                }
+            }
             if (status.ready) {
                 const blurLabel = status.blur ? 'On' : 'Off';
                 if (blur.textContent !== blurLabel) {
@@ -236,7 +278,8 @@
         fields.append(
             field(element('span', 'Ambient blur'), blur),
             field(element('span', 'Black bars'), crop),
-            field(shaderLabel, selectWrap)
+            field(shaderLabel, selectWrap),
+            field(sharpeningLabel, sharpeningControl)
         );
         const messages = element('div');
         messages.className = 'expanded-playback-messages';
@@ -253,6 +296,7 @@
         const timer = setInterval(refresh, 750);
         popup.dispose = () => {
             clearInterval(timer);
+            cancelAnimationFrame(sharpenFrame);
             if (popup.open && popup.isConnected) popup.close();
             popup.remove();
             if (playbackDialog === popup) playbackDialog = undefined;
@@ -368,11 +412,11 @@
             }
             .expanded-tools select { max-inline-size: 100%; }
             .expanded-tools option { color: var(--expanded-foreground); background: var(--expanded-surface); }
-            .expanded-tools button:hover:not(:disabled), button.expanded-playback-button:hover {
+            .expanded-tools button:hover:not(:disabled) {
                 border-color: var(--expanded-accent);
                 background: color-mix(in srgb, var(--expanded-accent) 20%, var(--expanded-field));
             }
-            .expanded-tools :is(button, select, textarea):focus-visible, button.expanded-playback-button:focus-visible {
+            .expanded-tools :is(button, select, input, textarea):focus-visible, button.expanded-playback-button:focus-visible {
                 outline: 2px solid var(--expanded-accent);
                 outline-offset: 2px;
             }
@@ -384,9 +428,14 @@
                 white-space: nowrap;
                 background: var(--expanded-surface);
                 background: color-mix(in srgb, var(--expanded-surface) 91%, transparent);
+                backdrop-filter: blur(15px);
                 color: var(--expanded-foreground);
                 border-radius: 100vw;
                 padding-inline: .95rem;
+            }
+            button.expanded-playback-button:hover {
+                background-color: transparent;
+                outline: var(--focus-outline-size, 2px) solid var(--expanded-accent);
             }
             .expanded-playback-dialog {
                 box-sizing: border-box;
@@ -440,6 +489,22 @@
                 transform: translateY(-70%) rotate(45deg);
                 pointer-events: none;
             }
+            .expanded-playback-sharpening {
+                display: grid;
+                grid-template-columns: minmax(0, 1fr) 4ch;
+                align-items: center;
+                gap: .65rem;
+                min-block-size: 2.55rem;
+                font-variant-numeric: tabular-nums;
+                text-align: end;
+            }
+            .expanded-playback-sharpening input {
+                inline-size: 100%;
+                min-inline-size: 0;
+                margin: 0;
+                accent-color: var(--expanded-accent);
+            }
+            .expanded-playback-sharpening input:disabled { opacity: .55; }
             .expanded-playback-messages {
                 block-size: 2.7rem;
                 overflow: auto;

@@ -64,7 +64,7 @@ async function waitInView(locator, message) {
                 window.qt.webChannelTransport.onmessage?.(event);
                 bridge.dispatchEvent(new MessageEvent('message',event));
             };
-            let blur = false, shader = 0, crop = 'idle';
+            let blur = false, shader = 0, crop = 'idle', sharpening = 0;
             bridge.postMessage = raw => {
                 const request = JSON.parse(raw);
                 if (request.id === 0) {
@@ -93,14 +93,15 @@ async function waitInView(locator, message) {
                         }
                     }
                     if (/^shader-[1-7]$/.test(arg)) shader = Number(arg.at(-1));
-                    if (arg === 'clear') shader = 0;
+                    if (arg === 'upscaling-off') shader = 0;
+                    if (/^sharpen-\d+$/.test(arg)) sharpening = Number(arg.slice(8));
                     if (arg === 'status') queueMicrotask(() => send('expanded-playback-status',{
-                        ready:true,blur,shader,crop,cropMessage:crop === 'locked' ?
+                        ready:true,blur,shader,crop,sharpening,sharpeningAvailable:!window.fixtureDisableSharpening,cropMessage:crop === 'locked' ?
                             'Black bars cropped. Ctrl+Shift+C restores the full frame.' :
                             crop === 'detecting' ? 'Detecting black bars. Keep the video playing.' : '',
                         report:{version:window.fixtureExpandedVersion,resolution:'1920 x 1080',codec:'h264',hardwareDecoder:'d3d11va',
                             output:'gpu-next',fps:24,renderDropped:2,decoderDropped:0,buffering:true,bufferPercent:33,
-                            bufferSeconds:2.4,videoFilters:false,upscaling:shader ? 'FSR' : 'Off',borderBlur:blur,
+                            bufferSeconds:2.4,videoFilters:false,upscaling:shader ? 'FSR' : 'Off',borderBlur:blur,sharpening,
                             blackBarCrop:crop === 'locked',streamUrl:'https://example.invalid/private-token'}
                     }));
                 }
@@ -178,15 +179,19 @@ async function waitInView(locator, message) {
         const seekAccent = () => seekTrack.evaluate(track => getComputedStyle(track).backgroundColor);
         await applyPalette('#d6492d', '#221411', '#f5ede8');
         assert.equal(await seekAccent(), 'rgb(214, 73, 45)', 'The native seek bar uses the selected theme');
+        const normalButton = await toolsButton.boundingBox();
         await toolsButton.hover();
-        assert.equal(await toolsButton.evaluate(button => getComputedStyle(button).borderColor), await seekAccent(),
-            'The hovered Playback Tools button must match the seek bar, even if the brand token is still purple');
+        assert.equal(await toolsButton.evaluate(button => getComputedStyle(button).outlineColor), await seekAccent(),
+            'The hover outline follows the seek bar accent');
+        assert.equal(await toolsButton.evaluate(button => getComputedStyle(button).backgroundColor), 'rgba(0, 0, 0, 0)',
+            'The fill clears on hover like Skip Outro');
+        assert.deepEqual(await toolsButton.boundingBox(), normalButton, 'Hover must not move or resize the button');
         await toolsButton.click();
         const tools = page.getByRole('dialog',{name:'Playback Tools'});
         await tools.getByRole('button',{name:'Ambient Blur: Off'}).waitFor();
         async function geometry() {
             return tools.evaluate(dialog => [dialog,
-                ...dialog.querySelectorAll('button, select')].map(element => {
+                ...dialog.querySelectorAll('button, select, input[type="range"]')].map(element => {
                 const {x,y,width,height} = element.getBoundingClientRect();
                 return [x,y,width,height];
             }));
@@ -201,13 +206,24 @@ async function waitInView(locator, message) {
         await tools.getByRole('button',{name:'Restore Frame'}).waitFor();
         assert.deepEqual(await geometry(), initial, 'A crop message must not resize the dialog');
         const upscaling = tools.getByLabel('Upscaling');
+        const sharpening = tools.getByRole('slider',{name:'Extra sharpening'});
+        assert.equal(await sharpening.inputValue(), '0');
+        await sharpening.evaluate(slider => {
+            slider.value = '55';
+            slider.dispatchEvent(new Event('input', {bubbles:true}));
+        });
+        await page.waitForFunction(() => window.playerCalls.includes('sharpen-55'));
+        assert.equal(await sharpening.getAttribute('aria-valuetext'), '55%');
+        assert.deepEqual(await geometry(), initial, 'Sharpening must leave the rows and footer in place');
         await upscaling.selectOption('7');
+        assert.equal(await sharpening.inputValue(), '55', 'Switching upscalers keeps the sharpening amount');
         await tools.getByRole('button',{name:'Copy playback report'}).click();
         await page.waitForFunction(() => window.copiedReport);
         const report = await page.evaluate(() => window.copiedReport);
         assert.match(report, /d3d11va/);
         assert.match(report, /Dropped frames \(renderer \/ decoder\): 2 \/ 0/);
         assert.match(report, /Upscaling: FSR/);
+        assert.match(report, /Extra sharpening: 55%/);
         assert.match(report, /Black-bar crop: Yes/);
         assert.doesNotMatch(report, /example\.invalid|private-token/);
         assert.deepEqual(await geometry(), initial, 'Copy feedback must not move the rows');
@@ -267,7 +283,15 @@ async function waitInView(locator, message) {
         await tools.getByRole('textbox',{name:'Playback report text'}).waitFor();
         assert.ok(await tools.getByRole('textbox',{name:'Playback report text'}).inputValue());
         await upscaling.selectOption('0');
-        assert.deepEqual(await page.evaluate(() => window.playerCalls), ['blur','detect','shader-7','detect','shader-4','clear']);
+        assert.equal(await sharpening.inputValue(), '55', 'Turning off upscaling keeps sharpening');
+        await sharpening.focus();
+        await page.keyboard.press('Home');
+        await page.waitForFunction(() => window.playerCalls.includes('sharpen-0'));
+        assert.equal(await sharpening.getAttribute('aria-valuetext'), 'Off');
+        assert.deepEqual(await page.evaluate(() => window.playerCalls),
+            ['blur','detect','sharpen-55','shader-7','detect','shader-4','upscaling-off','sharpen-0']);
+        await page.evaluate(() => { window.fixtureDisableSharpening = true; });
+        await page.waitForFunction(() => document.querySelector('#expanded-playback-sharpening')?.disabled);
         await tools.getByRole('button',{name:'Done'}).click();
         await tools.waitFor({state:'detached'});
         await page.setViewportSize({width:800,height:550});
@@ -285,7 +309,7 @@ async function waitInView(locator, message) {
         await page.goBack();
         await tools.waitFor({state:'detached'});
         assert.deepEqual(errors, []);
-        console.log('PASS: Help and about updater, playback navigation, live palette changes, stable zoomed layout, and report copy');
+        console.log('PASS: updater, playback navigation, transparent theme hover, sharpening, stable zoomed layout, and report copy');
     } finally {
         await browser.close();
     }

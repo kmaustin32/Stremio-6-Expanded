@@ -44,6 +44,8 @@ If a view lacks the full episode catalog needed for the conversion, an image fai
 
 During playback, move the mouse to show the player controls. Select **Playback Tools** just above the left end of the seek bar for ambient blur, detecting or restoring black-bar crops, and choosing an Anime4K or FSR preset. The button and translucent popup follow the selected Stremio theme, including the seek bar's accent for highlights, focus rings and **Done**. The controls stay in place as selections and status messages change. **Copy playback report** copies a snapshot of the decoder, dropped frames, buffer status, and enabled processing. It excludes stream URLs, filenames, titles, and account details.
 
+**5.1.1 Beta 1** adds **Extra sharpening** below **Upscaling**. Drag the slider to adjust FidelityFX CAS live with GPU Next. It starts at **0%** each time the app opens and works alongside the selected upscaler. Set **Upscaling → Off** to keep sharpening on its own, or press **Ctrl+8** to clear all shaders. The Playback Tools button now clears its fill on hover like Skip Outro, with the theme accent outlining the button.
+
 ## Playback shortcuts
 
 | Shortcut | Action |

@@ -32,6 +32,7 @@ def main():
             'anamorphic': 'color=c=0x80A0C0:s=320x180:r=24:d=20,pad=320:240:0:30:black,setsar=8/9',
             'faint': 'color=c=0x80A0C0:s=320x180:r=24:d=20,pad=320:240:0:30:black,drawbox=x=0:y=28:w=320:h=2:color=0x080808:t=fill',
             'full-faint-edges': 'color=c=0x80A0C0:s=320x240:r=24:d=20,drawbox=x=0:y=0:w=320:h=2:color=0x080808:t=fill,drawbox=x=0:y=238:w=320:h=2:color=0x080808:t=fill',
+            'soft': "color=s=320x240:r=4:d=20,geq=lum='128+18*sin(X*0.9)':cb=128:cr=128",
         }.items():
             subprocess.run([ffmpeg, '-hide_banner', '-loglevel', 'error', '-y',
                             '-f', 'lavfi', '-i', source, '-c:v', 'libx264',
@@ -186,6 +187,43 @@ def run(args, script, assets, ffmpeg, output):
         wait(lambda: state() == 'idle')
         assert not prop('video-crop')
         print('PASS: crop/blur, FSR, resizing without drift, and one-press full-frame restoration')
+
+        # A smooth gray pattern has known edge contrast and no compression noise
+        # from changing frames. Compare the actual picture at different amounts.
+        load('soft')
+        setprop('pause', 'yes')
+        setprop('dither-depth', 'no')
+        sharpener = assets / 'shaders/ExpandedSharpness.glsl'
+        amount = 'ExpandedSharpness/amount'
+
+        def edge_contrast():
+            pump(0.2)
+            picture = output / 'sharpen.png'
+            command('screenshot-to-file', picture, 'window')
+            pixels = subprocess.check_output([ffmpeg, '-hide_banner', '-loglevel', 'error',
+                '-i', str(picture), '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-'],
+                creationflags=subprocess.CREATE_NO_WINDOW)
+            row = pixels[(300 * 800 + 320) * 3:(300 * 800 + 480) * 3:3]
+            return sum(abs(left - right) for left, right in zip(row, row[1:]))
+
+        for unscaled, upscale in [('yes', ''), ('no', ''), ('no', str(assets / 'shaders/FSR.glsl'))]:
+            setprop('video-unscaled', unscaled)
+            setprop('glsl-shaders', upscale)
+            baseline = edge_contrast()
+            command('change-list', 'glsl-shader-opts', 'add', amount + '=50')
+            command('change-list', 'glsl-shaders', 'append', sharpener)
+            mild = edge_contrast()
+            command('change-list', 'glsl-shader-opts', 'add', amount + '=100')
+            strong = edge_contrast()
+            assert strong > mild > baseline, (unscaled, upscale, baseline, mild, strong)
+            command('change-list', 'glsl-shaders', 'remove', sharpener)
+            command('change-list', 'glsl-shader-opts', 'remove', amount)
+            assert prop('glsl-shaders') == upscale
+            assert edge_contrast() == baseline
+        setprop('glsl-shaders', '')
+        setprop('pause', 'no')
+        setprop('dither-depth', 'auto')
+        print('PASS: live sharpening at 1:1 and with scaling/FSR, including exact restoration at zero')
 
         # Video-out dimensions can differ from decoder dimensions. Validate
         # actual rendered pixels so accepting a crop cannot hide a bad mapping.

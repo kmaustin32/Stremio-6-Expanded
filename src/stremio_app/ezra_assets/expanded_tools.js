@@ -355,8 +355,8 @@
                     playbackButton = button('Playback Tools', showPlayback);
                     playbackButton.className = 'expanded-tools expanded-playback-button';
                     playbackButton.setAttribute('aria-haspopup', 'dialog');
-                    playbackButton.setAttribute('aria-keyshortcuts', 'Control+Shift+X');
-                    playbackButton.title = 'Playback Tools (Ctrl+Shift+X)';
+                    playbackButton.setAttribute('aria-keyshortcuts', 'Alt+X');
+                    playbackButton.title = 'Playback Tools (Alt+X)';
                 }
                 bar.append(playbackButton);
             }
@@ -593,7 +593,9 @@
             playbackDialog.close();
             return;
         }
-        if (event.code !== 'KeyX' || !event.ctrlKey || !event.shiftKey || event.altKey || event.metaKey ||
+        const isX = event.code === 'KeyX' ||
+            ((!event.code || event.code === 'Unidentified') && event.key.toLowerCase() === 'x');
+        if (!isX || !event.altKey || event.ctrlKey || event.shiftKey || event.metaKey ||
             event.isComposing || !activePlayer() ||
             event.target.closest?.('input, textarea, select, [contenteditable], [role="textbox"]')) return;
         event.preventDefault();

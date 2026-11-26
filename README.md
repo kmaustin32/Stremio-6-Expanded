@@ -50,7 +50,7 @@ During playback, move the mouse to show the player controls. Select **Playback T
 
 | Shortcut | Action |
 | --- | --- |
-| **Ctrl+Shift+X** | Open Playback Tools during playback, including when the controls are hidden. |
+| **Alt+X** | Open Playback Tools during playback, including when the controls are hidden. |
 | **Ctrl+Shift+C** | Detect baked-in black bars during playback and keep the confirmed crop for the current video. Press again to restore the full frame. A video without confirmed bars keeps its original framing. |
 | **Ctrl+B** | Toggle ambient blur in the space around the video. You can use it after detecting baked-in bars. |
 | **Ctrl+1–6** | Select an Anime4K HQ shader preset. |

@@ -94,7 +94,7 @@ jobs:
           - **Settings → Help and about:** See the installed Expanded version and check Stable or Beta on GitHub. Downloads are verified before you open the installer. Portable builds get a ZIP.
           - **Playback Tools:** Extra sharpening adjusts FidelityFX CAS live, including with Upscaling set to Off. It starts at 0% and uses GPU Next. The Playback Tools button clears its fill on hover like Skip Outro and keeps the active theme's outline.
           - **Sharpening fixes:** The slider has a stronger effect at 1440p, and holding or dragging it no longer triggers the player's 2× gesture.
-          - **Ctrl+Shift+X** opens Playback Tools during playback, even when the controls are hidden.
+          - **Alt+X** opens Playback Tools during playback, even when the controls are hidden.
           - **Library → Back up lists:** Export custom lists and manual Anime or Live Action choices. Preview and merge a backup on another PC.
           - List restores match renamed lists by their saved IDs first, and Playback Tools reopens if the player rebuilds its controls.
           - The updater, Playback Tools, Library, artwork and manual next-episode prompt are checked daily against the live Stremio interface.

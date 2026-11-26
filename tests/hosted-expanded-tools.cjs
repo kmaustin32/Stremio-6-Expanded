@@ -318,18 +318,27 @@ async function waitInView(locator, message) {
         await page.evaluate(() => { document.documentElement.style.zoom = ''; });
         await page.goBack();
         await toolsButton.waitFor({state:'detached'});
-        await page.keyboard.press('Control+Shift+X');
+        await page.keyboard.press('Alt+x');
         assert.equal(await tools.count(), 0, 'The shortcut only opens Playback Tools in the player');
         await page.goForward();
         await page.mouse.move(530,450);
         await toolsButton.waitFor();
+        assert.equal(await toolsButton.getAttribute('aria-keyshortcuts'), 'Alt+X');
         await toolsButton.evaluate(button => { button.style.visibility = 'hidden'; });
         await toolsButton.waitFor({state:'hidden'});
         await page.keyboard.press('Control+Shift+X');
+        assert.equal(await tools.count(), 0, 'The replaced shortcut does not open Playback Tools');
+        await page.keyboard.press('Alt+x');
         await tools.waitFor();
         await page.keyboard.press('Escape');
         await tools.waitFor({state:'detached'});
         assert.match(new URL(page.url()).hash, /^#\/player\//);
+        await page.evaluate(() => {
+            document.body.dispatchEvent(new KeyboardEvent('keydown', {key:'x', altKey:true, bubbles:true}));
+        });
+        await tools.waitFor();
+        await page.keyboard.press('Escape');
+        await tools.waitFor({state:'detached'});
         await page.locator('.expanded-playback-button').evaluate(button => { button.style.visibility = ''; });
         await toolsButton.click();
         await tools.waitFor();

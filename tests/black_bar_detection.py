@@ -191,57 +191,6 @@ def run(args, script, assets, ffmpeg, output):
         assert not prop('video-crop')
         print('PASS: crop/blur, FSR, resizing without drift, and one-press full-frame restoration')
 
-        # A smooth gray pattern has known edge contrast and no compression noise
-        # from changing frames. Compare the actual picture at different amounts.
-        load('soft')
-        setprop('pause', 'yes')
-        setprop('dither-depth', 'no')
-        sharpener = assets / 'shaders/ExpandedSharpness.glsl'
-        amount = 'ExpandedSharpness/amount'
-
-        def edge_contrast(width=800, height=600):
-            pump(0.2)
-            picture = output / 'sharpen.png'
-            command('screenshot-to-file', picture, 'window')
-            pixels = subprocess.check_output([ffmpeg, '-hide_banner', '-loglevel', 'error',
-                '-i', str(picture), '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-'],
-                creationflags=subprocess.CREATE_NO_WINDOW)
-            middle = height // 2 * width + width // 2
-            row = pixels[(middle - 80) * 3:(middle + 80) * 3:3]
-            return sum(abs(left - right) for left, right in zip(row, row[1:]))
-
-        def check_sharpening(width=800, height=600):
-            upscale = prop('glsl-shaders')
-            baseline = edge_contrast(width, height)
-            command('change-list', 'glsl-shader-opts', 'add', amount + '=50')
-            command('change-list', 'glsl-shaders', 'append', sharpener)
-            mild = edge_contrast(width, height)
-            command('change-list', 'glsl-shader-opts', 'add', amount + '=100')
-            strong = edge_contrast(width, height)
-            assert strong > mild > baseline, (width, upscale, baseline, mild, strong)
-            command('change-list', 'glsl-shaders', 'remove', sharpener)
-            command('change-list', 'glsl-shader-opts', 'remove', amount)
-            assert prop('glsl-shaders') == upscale
-            assert edge_contrast(width, height) == baseline
-            return baseline, mild, strong
-
-        for unscaled, upscale in [('yes', ''), ('no', ''), ('no', str(assets / 'shaders/FSR.glsl'))]:
-            setprop('video-unscaled', unscaled)
-            setprop('glsl-shaders', upscale)
-            check_sharpening()
-        setprop('glsl-shaders', '')
-        setprop('pause', 'no')
-        assert user.SetWindowPos(window, None, -32000, -32000, 2560, 1440, 0x14)
-        load('detail1080')
-        setprop('pause', 'yes')
-        wait(lambda: prop('osd-width') == '2560' and prop('osd-height') == '1440')
-        baseline, mild, strong = check_sharpening(2560, 1440)
-        assert mild > baseline * 1.025 and strong > baseline * 1.10, (baseline, mild, strong)
-        assert user.SetWindowPos(window, None, -32000, -32000, 800, 600, 0x14)
-        setprop('pause', 'no')
-        setprop('dither-depth', 'auto')
-        print(f'PASS: live sharpening at 1:1, with FSR, and at 1440p (contrast {baseline}, {mild}, {strong})')
-
         # Video-out dimensions can differ from decoder dimensions. Validate
         # actual rendered pixels so accepting a crop cannot hide a bad mapping.
         setprop('hwdec', 'no')
@@ -323,6 +272,56 @@ def run(args, script, assets, ffmpeg, output):
         pump(0.5)
         assert state() == 'idle' and not prop('video-crop')
         print('PASS: no-bar/dark/asymmetric picture safety, pillarbox, anamorphic/seam cases, pause and new-file cancellation')
+
+        # A smooth gray pattern has known edge contrast and no compression noise
+        # from changing frames. Compare the actual picture at different amounts.
+        load('soft')
+        setprop('pause', 'yes')
+        setprop('dither-depth', 'no')
+        sharpener = assets / 'shaders/ExpandedSharpness.glsl'
+        amount = 'ExpandedSharpness/amount'
+
+        def edge_contrast(width=800, height=600):
+            pump(0.2)
+            picture = output / 'sharpen.png'
+            command('screenshot-to-file', picture, 'window')
+            pixels = subprocess.check_output([ffmpeg, '-hide_banner', '-loglevel', 'error',
+                '-i', str(picture), '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-'],
+                creationflags=subprocess.CREATE_NO_WINDOW)
+            middle = height // 2 * width + width // 2
+            row = pixels[(middle - 80) * 3:(middle + 80) * 3:3]
+            return sum(abs(left - right) for left, right in zip(row, row[1:]))
+
+        def check_sharpening(width=800, height=600):
+            upscale = prop('glsl-shaders')
+            baseline = edge_contrast(width, height)
+            command('change-list', 'glsl-shader-opts', 'add', amount + '=50')
+            command('change-list', 'glsl-shaders', 'append', sharpener)
+            mild = edge_contrast(width, height)
+            command('change-list', 'glsl-shader-opts', 'add', amount + '=100')
+            strong = edge_contrast(width, height)
+            assert strong > mild > baseline, (width, upscale, baseline, mild, strong)
+            command('change-list', 'glsl-shaders', 'remove', sharpener)
+            command('change-list', 'glsl-shader-opts', 'remove', amount)
+            assert prop('glsl-shaders') == upscale
+            assert edge_contrast(width, height) == baseline
+            return baseline, mild, strong
+
+        for unscaled, upscale in [('yes', ''), ('no', ''), ('no', str(assets / 'shaders/FSR.glsl'))]:
+            setprop('video-unscaled', unscaled)
+            setprop('glsl-shaders', upscale)
+            check_sharpening()
+        setprop('glsl-shaders', '')
+        setprop('pause', 'no')
+        assert user.SetWindowPos(window, None, -32000, -32000, 2560, 1440, 0x14)
+        load('detail1080')
+        setprop('pause', 'yes')
+        wait(lambda: prop('osd-width') == '2560' and prop('osd-height') == '1440')
+        baseline, mild, strong = check_sharpening(2560, 1440)
+        assert mild > baseline * 1.025 and strong > baseline * 1.10, (baseline, mild, strong)
+        setprop('pause', 'no')
+        setprop('dither-depth', 'auto')
+        print(f'PASS: live sharpening at 1:1, with FSR, and at 1440p (contrast {baseline}, {mild}, {strong})')
     finally:
         dll.mpv_terminate_destroy(player)
         user.DestroyWindow(window)

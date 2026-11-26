@@ -209,6 +209,24 @@ async function waitInView(locator, message) {
         const upscaling = tools.getByLabel('Upscaling');
         const sharpening = tools.getByRole('slider',{name:'Extra sharpening'});
         assert.equal(await sharpening.inputValue(), '0');
+        await page.evaluate(() => {
+            window.fixturePlayerGestures = [];
+            for (const type of ['pointerdown', 'mousedown', 'click']) {
+                window.addEventListener(type, event => {
+                    if (event.target.closest?.('.expanded-playback-dialog')) window.fixturePlayerGestures.push(type);
+                });
+            }
+        });
+        const slider = await sharpening.boundingBox();
+        const middle = slider.y + slider.height / 2;
+        await page.mouse.move(slider.x + 7, middle);
+        await page.mouse.down();
+        await page.mouse.move(slider.x + slider.width * .8, middle, {steps: 6});
+        await page.waitForTimeout(650);
+        assert.ok(Number(await sharpening.inputValue()) > 50, 'Holding and dragging still moves the slider');
+        await page.mouse.up();
+        assert.deepEqual(await page.evaluate(() => window.fixturePlayerGestures), [],
+            'The player must not receive a press that starts inside Playback Tools');
         await sharpening.evaluate(slider => {
             slider.value = '55';
             slider.dispatchEvent(new Event('input', {bubbles:true}));
@@ -290,8 +308,8 @@ async function waitInView(locator, message) {
         await page.keyboard.press('Home');
         await page.waitForFunction(() => window.playerCalls.includes('sharpen-0'));
         assert.equal(await sharpening.getAttribute('aria-valuetext'), 'Off');
-        assert.deepEqual(await page.evaluate(() => window.playerCalls),
-            ['blur','detect','sharpen-55','shader-7','detect','shader-4','upscaling-off','sharpen-0']);
+        assert.deepEqual(await page.evaluate(() => window.playerCalls.filter(call => !call.startsWith('sharpen-'))),
+            ['blur','detect','shader-7','detect','shader-4','upscaling-off']);
         await page.evaluate(() => { window.fixtureDisableSharpening = true; });
         await page.waitForFunction(() => document.querySelector('#expanded-playback-sharpening')?.disabled);
         await tools.getByRole('button',{name:'Done'}).click();
@@ -300,9 +318,19 @@ async function waitInView(locator, message) {
         await page.evaluate(() => { document.documentElement.style.zoom = ''; });
         await page.goBack();
         await toolsButton.waitFor({state:'detached'});
+        await page.keyboard.press('Control+Shift+X');
+        assert.equal(await tools.count(), 0, 'The shortcut only opens Playback Tools in the player');
         await page.goForward();
         await page.mouse.move(530,450);
         await toolsButton.waitFor();
+        await toolsButton.evaluate(button => { button.style.visibility = 'hidden'; });
+        await toolsButton.waitFor({state:'hidden'});
+        await page.keyboard.press('Control+Shift+X');
+        await tools.waitFor();
+        await page.keyboard.press('Escape');
+        await tools.waitFor({state:'detached'});
+        assert.match(new URL(page.url()).hash, /^#\/player\//);
+        await page.locator('.expanded-playback-button').evaluate(button => { button.style.visibility = ''; });
         await toolsButton.click();
         await tools.waitFor();
         await tools.evaluate(dialog => dialog.remove());
@@ -311,7 +339,7 @@ async function waitInView(locator, message) {
         await page.goBack();
         await tools.waitFor({state:'detached'});
         assert.deepEqual(errors, []);
-        console.log('PASS: updater, playback navigation, transparent theme hover, sharpening, stable zoomed layout, and report copy');
+        console.log('PASS: updater, playback navigation, shortcut, isolated slider drag, theme, and report copy');
     } finally {
         await browser.close();
     }

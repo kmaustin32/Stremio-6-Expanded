@@ -34,16 +34,18 @@
 vec4 hook()
 {
     vec4 center = HOOKED_texOff(vec2(0.0));
-    vec3 left = HOOKED_texOff(vec2(-1.0, 0.0)).rgb;
-    vec3 right = HOOKED_texOff(vec2(1.0, 0.0)).rgb;
-    vec3 above = HOOKED_texOff(vec2(0.0, -1.0)).rgb;
-    vec3 below = HOOKED_texOff(vec2(0.0, 1.0)).rgb;
+    // Two output pixels pick up softened detail after fractional upscaling.
+    vec3 left = HOOKED_texOff(vec2(-2.0, 0.0)).rgb;
+    vec3 right = HOOKED_texOff(vec2(2.0, 0.0)).rgb;
+    vec3 above = HOOKED_texOff(vec2(0.0, -2.0)).rgb;
+    vec3 below = HOOKED_texOff(vec2(0.0, 2.0)).rgb;
     vec3 low = min(center.rgb, min(min(left, right), min(above, below)));
     vec3 high = max(center.rgb, max(max(left, right), max(above, below)));
-    // Give the filter less weight near black and white. Cap the slider at
-    // the mild end of the standard CAS range for use with other upscalers.
+    // Give the filter less weight near black and white.
     vec3 headroom = max(min(low, 1.0 - high), 0.0);
-    vec3 weight = -0.00125 * amount * sqrt(headroom / max(high, 0.0001));
+    vec3 weight = -0.0018 * amount * sqrt(headroom / max(high, 0.0001));
     vec3 sharpened = (center.rgb + weight * (left + right + above + below)) / (1.0 + 4.0 * weight);
-    return vec4(sharpened, center.a);
+    // Limit halos around hard edges without clamping the source's color range.
+    vec3 overshoot = 0.25 * (high - low);
+    return vec4(clamp(sharpened, low - overshoot, high + overshoot), center.a);
 }

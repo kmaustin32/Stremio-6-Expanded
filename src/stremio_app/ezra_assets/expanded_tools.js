@@ -153,10 +153,17 @@
 
     function showPlayback() {
         if (playbackDialog?.open && playbackDialog.isConnected) return;
+        const player = document.querySelector('[class*="player-container-"]');
+        if (!player) return;
         playbackDialog?.dispose();
         const popup = element('dialog');
         popup.className = 'expanded-tools expanded-playback-dialog';
         popup.setAttribute('aria-label', 'Playback Tools');
+        // Keep dialog interactions off the player's global gesture handlers.
+        const stopPlayerGesture = event => event.stopPropagation();
+        for (const type of ['pointerdown', 'mousedown', 'touchstart', 'click', 'dblclick', 'wheel']) {
+            popup.addEventListener(type, stopPlayerGesture);
+        }
         const title = element('h2', 'Playback Tools');
         const message = element('p', 'Waiting for the player...');
         message.setAttribute('role', 'status');
@@ -292,7 +299,7 @@
         footer.append(copy, done);
         popup.append(title, fields, messages, footer);
         // A modal is drawn above the player but still inherits its theme.
-        (playbackButton?.closest('[class*="player-container-"]') ?? document.body).append(popup);
+        player.append(popup);
         popup.showModal();
         const timer = setInterval(refresh, 750);
         popup.dispose = () => {
@@ -348,6 +355,8 @@
                     playbackButton = button('Playback Tools', showPlayback);
                     playbackButton.className = 'expanded-tools expanded-playback-button';
                     playbackButton.setAttribute('aria-haspopup', 'dialog');
+                    playbackButton.setAttribute('aria-keyshortcuts', 'Control+Shift+X');
+                    playbackButton.title = 'Playback Tools (Ctrl+Shift+X)';
                 }
                 bar.append(playbackButton);
             }
@@ -576,6 +585,21 @@
         navigation?.addEventListener('currententrychange', routeChanged);
         routeChanged();
     }
+    window.addEventListener('keydown', event => {
+        if (event.key === 'Escape' && playbackDialog?.open && playbackDialog.isConnected) {
+            // The hosted shell also uses Escape to navigate back from playback.
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            playbackDialog.close();
+            return;
+        }
+        if (event.code !== 'KeyX' || !event.ctrlKey || !event.shiftKey || event.altKey || event.metaKey ||
+            event.isComposing || !activePlayer() ||
+            event.target.closest?.('input, textarea, select, [contenteditable], [role="textbox"]')) return;
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        if (!event.repeat) showPlayback();
+    }, true);
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, {once: true});
     else start();
 })();

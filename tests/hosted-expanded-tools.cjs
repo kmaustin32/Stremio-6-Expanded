@@ -178,6 +178,7 @@ async function waitInView(locator, message) {
         const seekTrack = seek.locator('[class^="track-"]:not([class^="track-before-"]):not([class^="track-after-"])').first();
         const seekAccent = () => seekTrack.evaluate(track => getComputedStyle(track).backgroundColor);
         await applyPalette('#d6492d', '#221411', '#f5ede8');
+        await page.evaluate(() => document.fonts.ready);
         assert.equal(await seekAccent(), 'rgb(214, 73, 45)', 'The native seek bar uses the selected theme');
         const normalButton = await toolsButton.boundingBox();
         await toolsButton.hover();
@@ -214,6 +215,7 @@ async function waitInView(locator, message) {
         });
         await page.waitForFunction(() => window.playerCalls.includes('sharpen-55'));
         assert.equal(await sharpening.getAttribute('aria-valuetext'), '55%');
+        assert.equal(await sharpening.evaluate(input => input.style.getPropertyValue('--expanded-sharpening-fill')), '55%');
         assert.deepEqual(await geometry(), initial, 'Sharpening must leave the rows and footer in place');
         await upscaling.selectOption('7');
         assert.equal(await sharpening.inputValue(), '55', 'Switching upscalers keeps the sharpening amount');

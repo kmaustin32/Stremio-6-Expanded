@@ -24,7 +24,7 @@
 //!PARAM amount
 //!TYPE DYNAMIC float
 //!MINIMUM 0
-//!MAXIMUM 100
+//!MAXIMUM 150
 0
 
 //!HOOK SCALED
@@ -43,9 +43,13 @@ vec4 hook()
     vec3 high = max(center.rgb, max(max(left, right), max(above, below)));
     // Give the filter less weight near black and white.
     vec3 headroom = max(min(low, 1.0 - high), 0.0);
-    vec3 weight = -0.0018 * amount * sqrt(headroom / max(high, 0.0001));
-    vec3 sharpened = (center.rgb + weight * (left + right + above + below)) / (1.0 + 4.0 * weight);
+    // Above 100%, boost the existing detail correction with the CAS
+    // denominator held at its safe 100% value.
+    float boost = max(amount / 100.0, 1.0);
+    vec3 weight = -0.0018 * min(amount, 100.0) * sqrt(headroom / max(high, 0.0001));
+    vec3 base = (center.rgb + weight * (left + right + above + below)) / (1.0 + 4.0 * weight);
+    vec3 sharpened = center.rgb + (base - center.rgb) * boost;
     // Limit halos around hard edges without clamping the source's color range.
-    vec3 overshoot = 0.25 * (high - low);
+    vec3 overshoot = 0.25 * (high - low) * boost;
     return vec4(clamp(sharpened, low - overshoot, high + overshoot), center.a);
 }

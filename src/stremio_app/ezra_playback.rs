@@ -11,6 +11,7 @@ const PRESETS: &str = include_str!("ezra_assets/presets.json");
 const DETECTOR: &str = "fork_bar_detection.lua";
 const SHARPENER: &str = "ExpandedSharpness.glsl";
 const SHARPNESS_PARAM: &str = "ExpandedSharpness/amount";
+const MAX_SHARPENING: u8 = 150;
 
 macro_rules! shaders {
     ($($name:literal),+ $(,)?) => {
@@ -189,7 +190,7 @@ impl Playback {
                     })
                 })
                 .unwrap_or_default()
-                .min(100)
+                .min(MAX_SHARPENING)
         } else {
             0
         };
@@ -285,10 +286,10 @@ impl Playback {
                 let amount = action["sharpen-".len()..]
                     .parse::<u8>()
                     .ok()
-                    .filter(|amount| *amount <= 100)
+                    .filter(|amount| *amount <= MAX_SHARPENING)
                     .ok_or_else(|| anyhow!("Invalid sharpening amount"))?;
                 if amount > 0 && mpv.get_property::<String>("current-vo")?.as_str() != "gpu-next" {
-                    return Err(anyhow!("Extra sharpening requires gpu-next"));
+                    return Err(anyhow!("Enhancement requires gpu-next"));
                 }
                 self.set_sharpening(mpv, amount)?;
             }

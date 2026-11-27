@@ -207,7 +207,7 @@ async function waitInView(locator, message) {
         await tools.getByRole('button',{name:'Restore Frame'}).waitFor();
         assert.deepEqual(await geometry(), initial, 'A crop message must not resize the dialog');
         const upscaling = tools.getByLabel('Upscaling');
-        const sharpening = tools.getByRole('slider',{name:'Extra sharpening'});
+        const sharpening = tools.getByRole('slider',{name:'Enhancement'});
         assert.equal(await sharpening.inputValue(), '0');
         await page.evaluate(() => {
             window.fixturePlayerGestures = [];
@@ -228,22 +228,22 @@ async function waitInView(locator, message) {
         assert.deepEqual(await page.evaluate(() => window.fixturePlayerGestures), [],
             'The player must not receive a press that starts inside Playback Tools');
         await sharpening.evaluate(slider => {
-            slider.value = '55';
+            slider.value = '120';
             slider.dispatchEvent(new Event('input', {bubbles:true}));
         });
-        await page.waitForFunction(() => window.playerCalls.includes('sharpen-55'));
-        assert.equal(await sharpening.getAttribute('aria-valuetext'), '55%');
-        assert.equal(await sharpening.evaluate(input => input.style.getPropertyValue('--expanded-sharpening-fill')), '55%');
+        await page.waitForFunction(() => window.playerCalls.includes('sharpen-120'));
+        assert.equal(await sharpening.getAttribute('aria-valuetext'), '120%');
+        assert.equal(await sharpening.evaluate(input => input.style.getPropertyValue('--expanded-sharpening-fill')), '80%');
         assert.deepEqual(await geometry(), initial, 'Sharpening must leave the rows and footer in place');
         await upscaling.selectOption('7');
-        assert.equal(await sharpening.inputValue(), '55', 'Switching upscalers keeps the sharpening amount');
+        assert.equal(await sharpening.inputValue(), '120', 'Switching upscalers keeps the sharpening amount');
         await tools.getByRole('button',{name:'Copy playback report'}).click();
         await page.waitForFunction(() => window.copiedReport);
         const report = await page.evaluate(() => window.copiedReport);
         assert.match(report, /d3d11va/);
         assert.match(report, /Dropped frames \(renderer \/ decoder\): 2 \/ 0/);
         assert.match(report, /Upscaling: FSR/);
-        assert.match(report, /Extra sharpening: 55%/);
+        assert.match(report, /Enhancement: 120%/);
         assert.match(report, /Black-bar crop: Yes/);
         assert.doesNotMatch(report, /example\.invalid|private-token/);
         assert.deepEqual(await geometry(), initial, 'Copy feedback must not move the rows');
@@ -303,8 +303,12 @@ async function waitInView(locator, message) {
         await tools.getByRole('textbox',{name:'Playback report text'}).waitFor();
         assert.ok(await tools.getByRole('textbox',{name:'Playback report text'}).inputValue());
         await upscaling.selectOption('0');
-        assert.equal(await sharpening.inputValue(), '55', 'Turning off upscaling keeps sharpening');
+        assert.equal(await sharpening.inputValue(), '120', 'Turning off upscaling keeps sharpening');
         await sharpening.focus();
+        await page.keyboard.press('End');
+        await page.waitForFunction(() => window.playerCalls.includes('sharpen-150'));
+        assert.equal(await sharpening.getAttribute('aria-valuetext'), '150%');
+        assert.equal(await sharpening.evaluate(input => input.style.getPropertyValue('--expanded-sharpening-fill')), '100%');
         await page.keyboard.press('Home');
         await page.waitForFunction(() => window.playerCalls.includes('sharpen-0'));
         assert.equal(await sharpening.getAttribute('aria-valuetext'), 'Off');
@@ -322,6 +326,7 @@ async function waitInView(locator, message) {
         assert.equal(await tools.count(), 0, 'The shortcut only opens Playback Tools in the player');
         await page.goForward();
         await page.mouse.move(530,450);
+        await page.evaluate(() => { window.fixtureDisableSharpening = false; });
         await toolsButton.waitFor();
         assert.equal(await toolsButton.getAttribute('aria-keyshortcuts'), 'Alt+X');
         await toolsButton.evaluate(button => { button.style.visibility = 'hidden'; });
@@ -330,13 +335,18 @@ async function waitInView(locator, message) {
         assert.equal(await tools.count(), 0, 'The replaced shortcut does not open Playback Tools');
         await page.keyboard.press('Alt+x');
         await tools.waitFor();
-        await page.keyboard.press('Escape');
+        await sharpening.focus();
+        await page.keyboard.press('Alt+x');
         await tools.waitFor({state:'detached'});
         assert.match(new URL(page.url()).hash, /^#\/player\//);
         await page.evaluate(() => {
             document.body.dispatchEvent(new KeyboardEvent('keydown', {key:'x', altKey:true, bubbles:true}));
         });
         await tools.waitFor();
+        await page.evaluate(() => {
+            document.body.dispatchEvent(new KeyboardEvent('keydown', {key:'x', altKey:true, repeat:true, bubbles:true}));
+        });
+        assert.equal(await tools.count(), 1, 'Holding the shortcut does not dismiss the popup');
         await page.keyboard.press('Escape');
         await tools.waitFor({state:'detached'});
         await page.locator('.expanded-playback-button').evaluate(button => { button.style.visibility = ''; });

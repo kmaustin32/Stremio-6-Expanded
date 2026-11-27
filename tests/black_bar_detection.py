@@ -300,12 +300,14 @@ def run(args, script, assets, ffmpeg, output):
             mild = edge_contrast(width, height)
             command('change-list', 'glsl-shader-opts', 'add', amount + '=100')
             strong = edge_contrast(width, height)
-            assert strong > mild > baseline, (width, upscale, baseline, mild, strong)
+            command('change-list', 'glsl-shader-opts', 'add', amount + '=150')
+            enhanced = edge_contrast(width, height)
+            assert enhanced > strong > mild > baseline, (width, upscale, baseline, mild, strong, enhanced)
             command('change-list', 'glsl-shaders', 'remove', sharpener)
             command('change-list', 'glsl-shader-opts', 'remove', amount)
             assert prop('glsl-shaders') == upscale
             assert edge_contrast(width, height) == baseline
-            return baseline, mild, strong
+            return baseline, mild, strong, enhanced
 
         for unscaled, upscale in [('yes', ''), ('no', ''), ('no', str(assets / 'shaders/FSR.glsl'))]:
             setprop('video-unscaled', unscaled)
@@ -317,11 +319,12 @@ def run(args, script, assets, ffmpeg, output):
         load('detail1080')
         setprop('pause', 'yes')
         wait(lambda: prop('osd-width') == '2560' and prop('osd-height') == '1440')
-        baseline, mild, strong = check_sharpening(2560, 1440)
+        baseline, mild, strong, enhanced = check_sharpening(2560, 1440)
         assert mild > baseline * 1.025 and strong > baseline * 1.10, (baseline, mild, strong)
+        assert enhanced > strong * 1.025, (strong, enhanced)
         setprop('pause', 'no')
         setprop('dither-depth', 'auto')
-        print(f'PASS: live sharpening at 1:1, with FSR, and at 1440p (contrast {baseline}, {mild}, {strong})')
+        print(f'PASS: live sharpening at 1:1, with FSR, and at 1440p (contrast {baseline}, {mild}, {strong}, {enhanced})')
     finally:
         dll.mpv_terminate_destroy(player)
         user.DestroyWindow(window)

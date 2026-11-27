@@ -138,7 +138,7 @@
             'Video filters active: ' + yesNo(report.videoFilters),
             'NVIDIA video scaling / HDR: ' + yesNo(report.gpuScaling) + ' / ' + yesNo(report.gpuHdr),
             'Upscaling: ' + report.upscaling,
-            'Extra sharpening: ' + (Number.isFinite(report.sharpening) ? report.sharpening + '%' : 'Unavailable'),
+            'Enhancement: ' + (Number.isFinite(report.sharpening) ? report.sharpening + '%' : 'Unavailable'),
             'Ambient blur: ' + yesNo(report.borderBlur),
             'Black-bar crop: ' + yesNo(report.blackBarCrop),
         ].join('\n');
@@ -186,10 +186,10 @@
         sharpening.type = 'range';
         sharpening.id = 'expanded-playback-sharpening';
         sharpening.min = '0';
-        sharpening.max = '100';
+        sharpening.max = '150';
         sharpening.value = '0';
         sharpening.disabled = true;
-        const sharpeningLabel = element('label', 'Extra sharpening');
+        const sharpeningLabel = element('label', 'Enhancement');
         sharpeningLabel.htmlFor = sharpening.id;
         const sharpeningValue = element('span');
         sharpeningValue.setAttribute('aria-hidden', 'true');
@@ -199,7 +199,8 @@
         const showSharpeningValue = () => {
             const value = sharpening.value + '%';
             sharpeningValue.textContent = value;
-            sharpening.style.setProperty('--expanded-sharpening-fill', value);
+            const fill = sharpening.valueAsNumber * 100 / Number(sharpening.max);
+            sharpening.style.setProperty('--expanded-sharpening-fill', fill + '%');
             sharpening.setAttribute('aria-valuetext', sharpening.valueAsNumber ? value : 'Off');
         };
         showSharpeningValue();
@@ -247,7 +248,7 @@
             blur.disabled = shader.disabled = copy.disabled = !status.ready;
             crop.disabled = !status.ready || status.crop === 'detecting';
             sharpening.disabled = !status.ready || !status.sharpeningAvailable;
-            sharpening.title = status.ready && !status.sharpeningAvailable ? 'Extra sharpening requires GPU Next.' : '';
+            sharpening.title = status.ready && !status.sharpeningAvailable ? 'Enhancement requires GPU Next.' : '';
             if (sharpenFrame === undefined && !sharpening.matches(':active')) {
                 const value = String(status.sharpening ?? 0);
                 if (sharpening.value !== value) {
@@ -586,7 +587,8 @@
         routeChanged();
     }
     window.addEventListener('keydown', event => {
-        if (event.key === 'Escape' && playbackDialog?.open && playbackDialog.isConnected) {
+        const dialogOpen = playbackDialog?.open && playbackDialog.isConnected;
+        if (event.key === 'Escape' && dialogOpen) {
             // The hosted shell also uses Escape to navigate back from playback.
             event.preventDefault();
             event.stopImmediatePropagation();
@@ -597,10 +599,12 @@
             ((!event.code || event.code === 'Unidentified') && event.key.toLowerCase() === 'x');
         if (!isX || !event.altKey || event.ctrlKey || event.shiftKey || event.metaKey ||
             event.isComposing || !activePlayer() ||
-            event.target.closest?.('input, textarea, select, [contenteditable], [role="textbox"]')) return;
+            (!dialogOpen && event.target.closest?.('input, textarea, select, [contenteditable], [role="textbox"]'))) return;
         event.preventDefault();
         event.stopImmediatePropagation();
-        if (!event.repeat) showPlayback();
+        if (event.repeat) return;
+        if (dialogOpen) playbackDialog.close();
+        else showPlayback();
     }, true);
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, {once: true});
     else start();
